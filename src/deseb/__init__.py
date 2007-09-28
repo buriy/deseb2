@@ -1,6 +1,15 @@
 import django.db.models 
 import django.core.management
 
+"""
+django is picky about unknown attributes on both fields and models, so here
+we preempt their init methods to remove the offending information.
+
+these two methods pull the aka information (used for detecting renames),
+format it properly and store it as a class attribute.  then the original
+__init__() is called as originally planned.
+"""
+
 def set_field_aka(func):
     def inner(self, *args, **kwargs):
         self.aka = None
@@ -16,7 +25,6 @@ django.db.models.Field.__init__ = set_field_aka(django.db.models.Field.__init__)
 django.db.models.CharField.__init__ = set_field_aka(django.db.models.CharField.__init__)
 django.db.models.IntegerField.__init__ = set_field_aka(django.db.models.IntegerField.__init__)
 django.db.models.DateField.__init__ = set_field_aka(django.db.models.DateField.__init__)
-django.db.models.DateTimeField.__init__ = set_field_aka(django.db.models.DateTimeField.__init__)
 
 def set_model_aka(func):
     def inner(self, cls, name):

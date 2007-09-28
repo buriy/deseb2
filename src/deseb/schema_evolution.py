@@ -7,143 +7,15 @@ import os, re, shutil, sys, textwrap
 import django.core.management.sql as management
 import django.core.management.sql
 
-try:
-    set 
-except NameError: 
-    from sets import Set as set   # Python 2.3 fallback 
-    
+try: set 
+except NameError: from sets import Set as set   # Python 2.3 fallback 
 
-class MySQLOperations:
-    
-    pk_requires_unique = False
-
-    def get_change_table_name_sql( self, table_name, old_table_name ):
-        return ['ALTER TABLE '+ self.connection.ops.quote_name(old_table_name) +' RENAME TO '+ self.connection.ops.quote_name(table_name) + ';']
-    
-    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_def ):
-        # mysql doesn't support column renames (AFAIK), so we fake it
-        # TODO: only supports a single primary key so far
-        pk_name = None
-        for key in indexes.keys():
-            if indexes[key]['primary_key']: pk_name = key
-        output = []
-        output.append( 'ALTER TABLE '+ self.connection.ops.quote_name(table_name) +' CHANGE COLUMN '+ self.connection.ops.quote_name(old_col_name) +' '+ self.connection.ops.quote_name(new_col_name) +' '+ col_def + ';' )
-        return output
-    
-    def get_change_column_def_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
-        output = []
-        col_def = col_type +' '+ ('%sNULL' % (not null and 'NOT ' or ''))
-        if unique:
-            col_def += ' '+ 'UNIQUE'
-        if primary_key:
-            col_def += ' '+ 'PRIMARY KEY'
-        if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
-            col_def += ' '+ 'DEFAULT '+ self.connection.ops.quote_name(str(default))
-        output.append( 'ALTER TABLE '+ self.connection.ops.quote_name(table_name) +' MODIFY COLUMN '+ self.quote_name(col_name) +' '+ col_def + ';' )
-        return output
-    
-    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
-        output = []
-        field_output = []
-        field_output.append('ALTER TABLE')
-        field_output.append(self.connection.ops.quote_name(table_name))
-        field_output.append('ADD COLUMN')
-        field_output.append(self.connection.ops.quote_name(col_name))
-        field_output.append(col_type)
-        field_output.append(('%sNULL' % (not null and 'NOT ' or '')))
-        if unique:
-            field_output.append(('UNIQUE'))
-        if primary_key:
-            field_output.append(('PRIMARY KEY'))
-        if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
-            field_output.append(('DEFAULT'))
-            if col_type=='integer':
-                field_output.append((str(default)))
-            else:
-                field_output.append((self.quote_name(str(default))))
-        output.append(' '.join(field_output) + ';')
-        return output
-    
-    def get_drop_column_sql( self, table_name, col_name ):
-        output = []
-        output.append( 'ALTER TABLE '+ self.quote_name(table_name) +' DROP COLUMN '+ self.quote_name(col_name) + ';' )
-        return output
-    
-    def get_drop_table_sql( self, delete_tables):
-        return []
-    
-    def get_schema_fingerprint( self, cursor, app):
-        """it's important that the output of these methods don't change, otherwise the hashes they
-        produce will be inconsistent (and detection of existing schemas will fail.  unless you are 
-        absolutely sure the outout for ALL valid inputs will remain the same, you should bump the version by creating a new method"""
-        return self.get_schema_fingerprint_fv1(cursor, app)
-    
-    def get_schema_fingerprint_fv1( self, cursor, app):
-        from django.db import models
-        app_name = app.__name__.split('.')[-2]
-    
-        schema = ['app_name := '+ app_name]
-    
-        cursor.execute('SHOW TABLES;')
-        for table_name in [row[0] for row in cursor.fetchall()]:
-            if not table_name.startswith(app_name):
-                continue    # skip tables not in this app
-            schema.append('table_name := '+ table_name)
-            cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
-            for row in cursor.fetchall():
-                tmp = []
-                for x in row:
-                    tmp.append(str(x))
-                schema.append( '\t'.join(tmp) )
-            cursor.execute("SHOW INDEX FROM %s" % self.connection.ops.quote_name(table_name))
-            for row in cursor.fetchall():
-                schema.append( '\t'.join([ str(row[0]), str(row[1]), str(row[2]), str(row[3]), str(row[4]), str(row[5]), str(row[9]), ]) )
-            
-        return 'fv1:'+ str('\n'.join(schema).__hash__())
-
-    def get_columns( self, cursor, table_name):
-        try:
-            cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
-            return [row[0] for row in cursor.fetchall()]
-        except:
-            return []
-        
-    def get_known_column_flags( self, cursor, table_name, column_name ):
-        cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
-        dict = {}
-        for row in cursor.fetchall():
-            if row[0] == column_name:
-    
-                # maxlength check goes here
-                if row[1][0:7]=='varchar':
-                    dict['maxlength'] = row[1][8:len(row[1])-1]
-                
-                # default flag check goes here
-                if row[2]=='YES': dict['allow_null'] = True
-                else: dict['allow_null'] = False
-                
-                # primary/foreign/unique key flag check goes here
-                if row[3]=='PRI': dict['primary_key'] = True
-                else: dict['primary_key'] = False
-                if row[3]=='FOR': dict['foreign_key'] = True
-                else: dict['foreign_key'] = False
-                if row[3]=='UNI': dict['unique'] = True
-                else: dict['unique'] = False
-                
-                # default value check goes here
-                # if row[4]=='NULL': dict['default'] = None
-                # else: dict['default'] = row[4]
-                dict['default'] = row[4]
-                
-        # print table_name, column_name, dict
-        return dict
-
-
-def get_ops_class( connection ):
-    ops = MySQLOperations()
-    ops.connection = connection
-    ops.quote_name = connection.ops.quote_name
-    return ops
+def get_operations_and_introspection_classes():
+    from django.db import connection
+    import deseb.backends.mysql as backend
+    ops = backend.DatabaseOperations(connection)
+    introspection = backend.DatabaseIntrospection(connection)
+    return ops, introspection
 
 def get_sql_indexes_for_field(model, f, style):
     "Returns the CREATE INDEX SQL statement for a single field"
@@ -169,9 +41,12 @@ def get_sql_indexes_for_field(model, f, style):
 def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
     "checks for model fields that are not in the existing data structure"
     from django.db import get_creation_module, models, get_introspection_module, connection
+
+    ops, introspection = get_operations_and_introspection_classes()
+    
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
-    introspection = ops = get_ops_class(connection)
+#    introspection = ops = get_ops_class(connection)
     opts = model._meta
     output = []
     db_table = model._meta.db_table
@@ -191,9 +66,12 @@ def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
 
 def get_sql_evolution_check_for_changed_model_name(klass, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
+
+    ops, introspection = get_operations_and_introspection_classes()
+
     cursor = connection.cursor()
     introspection = get_introspection_module()
-    ops = get_ops_class(connection)
+#    ops = get_ops_class(connection)
     table_list = introspection.get_table_list(cursor)
     if klass._meta.db_table in table_list:
         return [], None
@@ -210,9 +88,12 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
     
 def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
+
+    ops, introspection = get_operations_and_introspection_classes()
+
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
-    introspection = ops = get_ops_class(connection)
+#    introspection = ops = get_ops_class(connection)
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
@@ -237,12 +118,15 @@ def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style)
     return output
     
 def get_sql_evolution_check_for_changed_field_flags(klass, new_table_name, style):
+
+    ops, introspection = get_operations_and_introspection_classes()
+    
     from django.db import get_creation_module, models, get_introspection_module, connection
     from django.db.models.fields import CharField, SlugField
     from django.db.models.fields.related import RelatedField, ForeignKey
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
-    introspection = ops = get_ops_class(connection)
+#    introspection = ops = get_ops_class(connection)
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
@@ -284,9 +168,12 @@ def get_sql_evolution_check_for_dead_fields(klass, new_table_name, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
     from django.db.models.fields import CharField, SlugField
     from django.db.models.fields.related import RelatedField, ForeignKey
+    
+    ops, introspection = get_operations_and_introspection_classes()
+
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
-    introspection = ops = get_ops_class(connection)
+#    introspection = ops = get_ops_class(connection)
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
@@ -309,7 +196,9 @@ def get_sql_evolution_check_for_dead_fields(klass, new_table_name, style):
 
 def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, app_models, style):
     from django.db import connection
-    ops = get_ops_class(connection)
+    
+    ops, introspection = get_operations_and_introspection_classes()
+
     app_label = app_models[0]._meta.app_label
     safe_tables = set(safe_tables)
     for model in app_models:
@@ -334,7 +223,9 @@ def get_sql_evolution(app, style):
 
 def get_sql_evolution_detailed(app, style):
     "Returns SQL to update an existing schema to match the existing models."
-    import sys, schema_evolution
+
+    ops, introspection = get_operations_and_introspection_classes()
+    
     from django.db import get_creation_module, models, backend, get_introspection_module, connection
 #    data_types = get_creation_module().DATA_TYPES
 #
@@ -346,13 +237,13 @@ def get_sql_evolution_detailed(app, style):
 #            "Edit your settings file and change DATABASE_ENGINE to something like 'postgresql' or 'mysql'.\n"))
 #        sys.exit(1)
 
-    try:
-        ops = get_ops_class(connection)
-    except:
-        # This must be an unsupported database backend
-        sys.stderr.write(style.ERROR("Error: Django doesn't know which syntax to use for your SQL statements, " +
-            "because schema evolution support isn't built into your database backend yet.  Sorry!\n"))
-        sys.exit(1)
+#    try:
+#        ops = get_ops_class(connection)
+#    except:
+#        # This must be an unsupported database backend
+#        sys.stderr.write(style.ERROR("Error: Django doesn't know which syntax to use for your SQL statements, " +
+#            "because schema evolution support isn't built into your database backend yet.  Sorry!\n"))
+#        sys.exit(1)
 
 #    # First, try validating the models.
 #    _check_for_validation_errors()
@@ -363,12 +254,12 @@ def get_sql_evolution_detailed(app, style):
     except:
         cursor = None
 
-    introspection = get_introspection_module()
+#    introspection = get_introspection_module()
     app_name = app.__name__.split('.')[-2]
 
     final_output = []
 
-    schema_fingerprint = ops.get_schema_fingerprint(cursor, app)
+    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
     try:
         # is this a schema we recognize?
         app_se = __import__(app_name +'.schema_evolution').schema_evolution
@@ -400,7 +291,7 @@ def get_sql_evolution_detailed(app, style):
 
     # stolen and trimmed from syncdb so that we know which models are about 
     # to be created (so we don't check them for updates)
-    table_list = introspection.get_table_list(cursor)
+    table_list = get_introspection_module().get_table_list(cursor)
     seen_models = django.core.management.sql.installed_models(table_list)
     created_models = set()
     pending_references = {}
@@ -431,23 +322,23 @@ def get_sql_evolution_detailed(app, style):
     for model in app_models:
         if model._meta.db_table: seen_tables.add(model._meta.db_table)
         
-        output, new_table_name = schema_evolution.get_sql_evolution_check_for_changed_model_name(model, style)
+        output, new_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
         if new_table_name: seen_tables.add(new_table_name)
         final_output.extend(output)
         
-        output = schema_evolution.get_sql_evolution_check_for_changed_field_flags(model, new_table_name, style)
+        output = get_sql_evolution_check_for_changed_field_flags(model, new_table_name, style)
         final_output.extend(output)
     
-        output = schema_evolution.get_sql_evolution_check_for_changed_field_name(model, new_table_name, style)
+        output = get_sql_evolution_check_for_changed_field_name(model, new_table_name, style)
         final_output.extend(output)
         
-        output = schema_evolution.get_sql_evolution_check_for_new_fields(model, new_table_name, style)
+        output = get_sql_evolution_check_for_new_fields(model, new_table_name, style)
         final_output.extend(output)
         
-        output = schema_evolution.get_sql_evolution_check_for_dead_fields(model, new_table_name, style)
+        output = get_sql_evolution_check_for_dead_fields(model, new_table_name, style)
         final_output.extend(output)
         
-    output = schema_evolution.get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
+    output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
     final_output.extend(output)
         
     return schema_fingerprint, True, final_output
@@ -461,7 +352,7 @@ def _get_sql_model_create(model, known_models, style):
     """
     from django.db import backend, models, connection
     
-    ops = get_ops_class(connection)
+#    ops = get_ops_class(connection)
 
     opts = model._meta
     final_output = []
