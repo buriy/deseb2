@@ -5,13 +5,14 @@ except NameError: from sets import Set as set   # Python 2.3 fallback
 
 class DatabaseOperations:
     
-    def __init__(self, connection):
+    def __init__(self, connection, style):
         self.connection = connection
+        self.style = style
     
     pk_requires_unique = False
 
     def get_change_table_name_sql( self, table_name, old_table_name ):
-        return ['ALTER TABLE '+ self.connection.ops.quote_name(old_table_name) +' RENAME TO '+ self.connection.ops.quote_name(table_name) + ';']
+        return [self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(old_table_name)) +self.style.SQL_KEYWORD(' RENAME TO ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) + ';']
     
     def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_def ):
         # mysql doesn't support column renames (AFAIK), so we fake it
@@ -20,38 +21,38 @@ class DatabaseOperations:
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
         output = []
-        output.append( 'ALTER TABLE '+ self.connection.ops.quote_name(table_name) +' CHANGE COLUMN '+ self.connection.ops.quote_name(old_col_name) +' '+ self.connection.ops.quote_name(new_col_name) +' '+ col_def + ';' )
+        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' CHANGE COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) +' '+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +' '+ self.style.SQL_KEYWORD(col_def) + ';' )
         return output
     
     def get_change_column_def_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
         output = []
-        col_def = col_type +' '+ ('%sNULL' % (not null and 'NOT ' or ''))
+        col_def = col_type +' '+ self.style.SQL_KEYWORD('%sNULL' % (not null and 'NOT ' or ''))
         if unique:
-            col_def += ' '+ 'UNIQUE'
+            col_def += ' '+ self.style.SQL_KEYWORD('UNIQUE')
         if primary_key:
-            col_def += ' '+ 'PRIMARY KEY'
+            col_def += ' '+ self.style.SQL_KEYWORD('PRIMARY KEY')
         if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
-            col_def += ' '+ 'DEFAULT '+ self.connection.ops.quote_name(str(default))
-        output.append( 'ALTER TABLE '+ self.connection.ops.quote_name(table_name) +' MODIFY COLUMN '+ self.connection.ops.quote_name(col_name) +' '+ col_def + ';' )
+            col_def += ' '+ self.style.SQL_KEYWORD('DEFAULT ')+ self.connection.ops.quote_name(str(default))
+        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' MODIFY COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +' '+ col_def + ';' )
         return output
     
     def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
         output = []
         field_output = []
-        field_output.append('ALTER TABLE')
-        field_output.append(self.connection.ops.quote_name(table_name))
-        field_output.append('ADD COLUMN')
-        field_output.append(self.connection.ops.quote_name(col_name))
+        field_output.append(self.style.SQL_KEYWORD('ALTER TABLE'))
+        field_output.append(self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)))
+        field_output.append(self.style.SQL_KEYWORD('ADD COLUMN'))
+        field_output.append(self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)))
         field_output.append(col_type)
-        field_output.append(('%sNULL' % (not null and 'NOT ' or '')))
+        field_output.append(self.style.SQL_KEYWORD(('%sNULL' % (not null and 'NOT ' or ''))))
         if unique:
-            field_output.append(('UNIQUE'))
+            field_output.append(self.style.SQL_KEYWORD('UNIQUE'))
         if primary_key:
-            field_output.append(('PRIMARY KEY'))
+            field_output.append(self.style.SQL_KEYWORD('PRIMARY KEY'))
         if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
-            field_output.append(('DEFAULT'))
+            field_output.append(self.style.SQL_KEYWORD('DEFAULT'))
             if col_type=='integer':
-                field_output.append((str(default)))
+                field_output.append(self.style.SQL_KEYWORD(str(default)))
             else:
                 field_output.append((self.connection.ops.quote_name(str(default))))
         output.append(' '.join(field_output) + ';')
@@ -59,7 +60,7 @@ class DatabaseOperations:
     
     def get_drop_column_sql( self, table_name, col_name ):
         output = []
-        output.append( 'ALTER TABLE '+ self.connection.ops.quote_name(table_name) +' DROP COLUMN '+ self.connection.ops.quote_name(col_name) + ';' )
+        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' DROP COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
         return output
     
     def get_drop_table_sql( self, delete_tables):

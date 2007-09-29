@@ -10,10 +10,13 @@ import django.core.management.sql
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
-def get_operations_and_introspection_classes():
+def get_operations_and_introspection_classes(style):
     from django.db import connection
-    import deseb.backends.mysql as backend
-    ops = backend.DatabaseOperations(connection)
+    backend_type = str(connection.__class__).split('.')[3]
+    if backend_type=='mysql': import deseb.backends.mysql as backend
+    if backend_type=='postgresql': import deseb.backends.postgresql as backend
+    if backend_type=='sqlite3': import deseb.backends.sqlite3 as backend
+    ops = backend.DatabaseOperations(connection, style)
     introspection = backend.DatabaseIntrospection(connection)
     return ops, introspection
 
@@ -42,7 +45,7 @@ def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
     "checks for model fields that are not in the existing data structure"
     from django.db import get_creation_module, models, get_introspection_module, connection
 
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
     
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
@@ -67,7 +70,7 @@ def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
 def get_sql_evolution_check_for_changed_model_name(klass, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
 
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
 
     cursor = connection.cursor()
     introspection = get_introspection_module()
@@ -89,7 +92,7 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
 def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
 
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
 
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
@@ -119,7 +122,7 @@ def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style)
     
 def get_sql_evolution_check_for_changed_field_flags(klass, new_table_name, style):
 
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
     
     from django.db import get_creation_module, models, get_introspection_module, connection
     from django.db.models.fields import CharField, SlugField
@@ -169,7 +172,7 @@ def get_sql_evolution_check_for_dead_fields(klass, new_table_name, style):
     from django.db.models.fields import CharField, SlugField
     from django.db.models.fields.related import RelatedField, ForeignKey
     
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
 
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
@@ -197,7 +200,7 @@ def get_sql_evolution_check_for_dead_fields(klass, new_table_name, style):
 def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, app_models, style):
     from django.db import connection
     
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
 
     app_label = app_models[0]._meta.app_label
     safe_tables = set(safe_tables)
@@ -224,7 +227,7 @@ def get_sql_evolution(app, style):
 def get_sql_evolution_detailed(app, style):
     "Returns SQL to update an existing schema to match the existing models."
 
-    ops, introspection = get_operations_and_introspection_classes()
+    ops, introspection = get_operations_and_introspection_classes(style)
     
     from django.db import get_creation_module, models, backend, get_introspection_module, connection
 #    data_types = get_creation_module().DATA_TYPES
