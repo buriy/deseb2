@@ -7,7 +7,6 @@ import django.core.management
 
 def add_management_commands(func):
     def inner(*args, **kwargs):
-        print 'real woot'
         rv = func(*args, **kwargs)
         rv['sqlevolve'] = 'deseb'
         add_aka_support()
