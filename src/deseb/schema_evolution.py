@@ -4,14 +4,29 @@ from optparse import OptionParser
 from django.utils import termcolors
 from django.conf import settings
 import os, re, shutil, sys, textwrap
-import django.core.management.sql as management
-import django.core.management.sql
+try:
+    import django.core.management.sql as management
+except:
+    # v0.96 compatibility
+    import django.core.management as management
+    management.installed_models = management._get_installed_models
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
+class dummy: pass
+
 def get_operations_and_introspection_classes(style):
-    from django.db import connection
+    from django.db import backend, connection
+
+    try: # v0.96 compatibility
+        v0_96_quote_name = backend.quote_name
+        setattr(connection, 'ops', dummy())
+        setattr(connection.ops, 'quote_name', backend.quote_name)
+        ops.quote_name = v0_96_quote_name
+    except:
+        pass
+    
     backend_type = str(connection.__class__).split('.')[3]
     if backend_type=='mysql': import deseb.backends.mysql as backend
     if backend_type=='postgresql': import deseb.backends.postgresql as backend
@@ -26,7 +41,10 @@ def get_sql_indexes_for_field(model, f, style):
     output = []
     if f.db_index and not ((f.primary_key or f.unique) and backend.autoindexes_primary_keys):
         unique = f.unique and 'UNIQUE ' or ''
-        tablespace = f.db_tablespace or model._meta.db_tablespace
+        try:
+            tablespace = f.db_tablespace or model._meta.db_tablespace
+        except: # v0.96 compatibility
+            tablespace = None
         if tablespace and backend.supports_tablespaces:
             tablespace_sql = ' ' + backend.get_tablespace_sql(tablespace)
         else:
@@ -78,7 +96,6 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
     table_list = introspection.get_table_list(cursor)
     if klass._meta.db_table in table_list:
         return [], None
-#    print 'klass._meta.aka', klass._meta.aka
     aka_db_tables = set()
     if klass._meta.aka:
         for x in klass._meta.aka:
@@ -91,7 +108,7 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
     
 def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
-
+    
     ops, introspection = get_operations_and_introspection_classes(style)
 
     data_types = get_creation_module().DATA_TYPES
@@ -221,8 +238,13 @@ def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, a
             delete_tables.add(t)
     return ops.get_drop_table_sql(delete_tables)
 
+def get_sql_evolution_v0_96(app):
+    return get_sql_evolution(app, management.style)
+
 def get_sql_evolution(app, style):
     "Returns SQL to update an existing schema to match the existing models."
+    import deseb
+    deseb.add_aka_support()
     return get_sql_evolution_detailed(app, style)[2]
 
 def get_sql_evolution_detailed(app, style):
@@ -296,7 +318,7 @@ def get_sql_evolution_detailed(app, style):
     # stolen and trimmed from syncdb so that we know which models are about 
     # to be created (so we don't check them for updates)
     table_list = get_introspection_module().get_table_list(cursor)
-    seen_models = django.core.management.sql.installed_models(table_list)
+    seen_models = management.installed_models(table_list)
     created_models = set()
     pending_references = {}
     
@@ -364,7 +386,10 @@ def _get_sql_model_create(model, known_models, style):
     pending_references = {}
     for f in opts.fields:
         col_type = f.db_type()
-        tablespace = f.db_tablespace or opts.db_tablespace
+        try:
+            tablespace = f.db_tablespace or opts.db_tablespace
+        except: # v0.96 compatibility
+            tablespace = None
         if col_type is None:
             # Skip ManyToManyFields, because they're not represented as
             # database columns in this table.
@@ -405,8 +430,11 @@ def _get_sql_model_create(model, known_models, style):
     for i, line in enumerate(table_output): # Combine and add commas.
         full_statement.append('    %s%s' % (line, i < len(table_output)-1 and ',' or ''))
     full_statement.append(')')
-    if opts.db_tablespace and backend.supports_tablespaces:
-        full_statement.append(backend.get_tablespace_sql(opts.db_tablespace))
+    try:
+        if opts.db_tablespace and backend.supports_tablespaces:
+            full_statement.append(backend.get_tablespace_sql(opts.db_tablespace))
+    except: # v0.96 compatibility
+        pass
     full_statement.append(';')
     final_output.append('\n'.join(full_statement))
 
@@ -421,14 +449,20 @@ def _get_sql_model_create(model, known_models, style):
 
 def _get_many_to_many_sql_for_field(model, f, style):
     from django.db import backend, models, connection
-    from django.contrib.contenttypes import generic
-
+    try:
+        from django.contrib.contenttypes import generic
+    except: # v0.96 compatibility
+        from django.db.models.fields import generic
+        
     ops, introspection = get_operations_and_introspection_classes(style)
 
     opts = model._meta
     final_output = []
     if not isinstance(f.rel, generic.GenericRel):
-        tablespace = f.db_tablespace or opts.db_tablespace
+        try:
+            tablespace = f.db_tablespace or opts.db_tablespace
+        except: # v0.96 compatibility
+            tablespace = None
         if tablespace and backend.supports_tablespaces and backend.autoindexes_primary_keys:
             tablespace_sql = ' ' + backend.get_tablespace_sql(tablespace, inline=True)
         else:
@@ -462,9 +496,12 @@ def _get_many_to_many_sql_for_field(model, f, style):
             style.SQL_FIELD(connection.ops.quote_name(f.m2m_reverse_name())),
             tablespace_sql))
         table_output.append(')')
-        if opts.db_tablespace and backend.supports_tablespaces:
-            # f.db_tablespace is only for indices, so ignore its value here.
-            table_output.append(backend.get_tablespace_sql(opts.db_tablespace))
+        try: 
+            if opts.db_tablespace and backend.supports_tablespaces:
+                # f.db_tablespace is only for indices, so ignore its value here.
+                table_output.append(backend.get_tablespace_sql(opts.db_tablespace))
+        except: # v0.96 compatibility
+            pass
         table_output.append(';')
         final_output.append('\n'.join(table_output))
 
