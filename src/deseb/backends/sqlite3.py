@@ -28,6 +28,9 @@ class DatabaseOperations:
     
     def get_drop_table_sql( self, delete_tables):
         pass
+
+    def get_autoinc_sql(self, table):
+        return None
     
 
 class DatabaseIntrospection:

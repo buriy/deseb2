@@ -64,7 +64,7 @@ def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
                 output.extend( get_sql_indexes_for_field(model, f, style) )
     for f in opts.many_to_many:
         if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
-            output.extend( management._get_many_to_many_sql_for_field(model, f) )
+            output.extend( _get_many_to_many_sql_for_field(model, f, style) )
     return output
 
 def get_sql_evolution_check_for_changed_model_name(klass, style):
@@ -202,6 +202,7 @@ def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, a
     
     ops, introspection = get_operations_and_introspection_classes(style)
 
+    if not app_models: return []
     app_label = app_models[0]._meta.app_label
     safe_tables = set(safe_tables)
     for model in app_models:
@@ -355,7 +356,7 @@ def _get_sql_model_create(model, known_models, style):
     """
     from django.db import backend, models, connection
     
-#    ops = get_ops_class(connection)
+    ops, introspection = get_operations_and_introspection_classes(style)
 
     opts = model._meta
     final_output = []
@@ -369,7 +370,7 @@ def _get_sql_model_create(model, known_models, style):
             # database columns in this table.
             continue
         # Make the definition (e.g. 'foo VARCHAR(30)') for this field.
-        field_output = [style.SQL_FIELD(ops.quote_name(f.column)),
+        field_output = [style.SQL_FIELD(connection.ops.quote_name(f.column)),
             style.SQL_COLTYPE(col_type)]
         field_output.append(style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or '')))
         if (f.unique and (not f.primary_key or backend.allows_unique_and_pk)) or (f.primary_key and ops.pk_requires_unique):
@@ -400,7 +401,7 @@ def _get_sql_model_create(model, known_models, style):
         table_output.append(style.SQL_KEYWORD('UNIQUE') + ' (%s)' % \
             ", ".join([ops.quote_name(style.SQL_FIELD(opts.get_field(f).column)) for f in field_constraints]))
 
-    full_statement = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + style.SQL_TABLE(ops.quote_name(opts.db_table)) + ' (']
+    full_statement = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + style.SQL_TABLE(connection.ops.quote_name(opts.db_table)) + ' (']
     for i, line in enumerate(table_output): # Combine and add commas.
         full_statement.append('    %s%s' % (line, i < len(table_output)-1 and ',' or ''))
     full_statement.append(')')
@@ -417,3 +418,60 @@ def _get_sql_model_create(model, known_models, style):
                 final_output.append(stmt)
 
     return final_output, pending_references
+
+def _get_many_to_many_sql_for_field(model, f, style):
+    from django.db import backend, models, connection
+    from django.contrib.contenttypes import generic
+
+    ops, introspection = get_operations_and_introspection_classes(style)
+
+    opts = model._meta
+    final_output = []
+    if not isinstance(f.rel, generic.GenericRel):
+        tablespace = f.db_tablespace or opts.db_tablespace
+        if tablespace and backend.supports_tablespaces and backend.autoindexes_primary_keys:
+            tablespace_sql = ' ' + backend.get_tablespace_sql(tablespace, inline=True)
+        else:
+            tablespace_sql = ''
+        table_output = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + \
+            style.SQL_TABLE(connection.ops.quote_name(f.m2m_db_table())) + ' (']
+        table_output.append('    %s %s %s%s,' % \
+            (style.SQL_FIELD(connection.ops.quote_name('id')),
+            style.SQL_COLTYPE(models.AutoField(primary_key=True).db_type()),
+            style.SQL_KEYWORD('NOT NULL PRIMARY KEY'),
+            tablespace_sql))
+        table_output.append('    %s %s %s %s (%s)%s,' % \
+            (style.SQL_FIELD(connection.ops.quote_name(f.m2m_column_name())),
+            style.SQL_COLTYPE(models.ForeignKey(model).db_type()),
+            style.SQL_KEYWORD('NOT NULL REFERENCES'),
+            style.SQL_TABLE(connection.ops.quote_name(opts.db_table)),
+            style.SQL_FIELD(connection.ops.quote_name(opts.pk.column)),
+#            backend.get_deferrable_sql()))
+            ''))
+        table_output.append('    %s %s %s %s (%s)%s,' % \
+            (style.SQL_FIELD(connection.ops.quote_name(f.m2m_reverse_name())),
+            style.SQL_COLTYPE(models.ForeignKey(f.rel.to).db_type()),
+            style.SQL_KEYWORD('NOT NULL REFERENCES'),
+            style.SQL_TABLE(connection.ops.quote_name(f.rel.to._meta.db_table)),
+            style.SQL_FIELD(connection.ops.quote_name(f.rel.to._meta.pk.column)),
+#            backend.get_deferrable_sql()))
+            ''))
+        table_output.append('    %s (%s, %s)%s' % \
+            (style.SQL_KEYWORD('UNIQUE'),
+            style.SQL_FIELD(connection.ops.quote_name(f.m2m_column_name())),
+            style.SQL_FIELD(connection.ops.quote_name(f.m2m_reverse_name())),
+            tablespace_sql))
+        table_output.append(')')
+        if opts.db_tablespace and backend.supports_tablespaces:
+            # f.db_tablespace is only for indices, so ignore its value here.
+            table_output.append(backend.get_tablespace_sql(opts.db_tablespace))
+        table_output.append(';')
+        final_output.append('\n'.join(table_output))
+
+        # Add any extra SQL needed to support auto-incrementing PKs
+        autoinc_sql = ops.get_autoinc_sql(f.m2m_db_table())
+        if autoinc_sql:
+            for stmt in autoinc_sql:
+                final_output.append(stmt)
+
+    return final_output
