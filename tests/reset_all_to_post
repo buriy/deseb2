@@ -3,4 +3,5 @@ cd case02_rename_field/; rm models.py; ln -sf models.py.post models.py; cd ..
 cd case03_rename_model/; rm models.py; ln -sf models.py.post models.py; cd ..
 cd case04_change_flag/; rm models.py; ln -sf models.py.post models.py; cd ..
 cd case05_remove_field/; rm models.py; ln -sf models.py.post models.py; cd ..
+cd case666_everything/; rm models.py; ln -sf models.py.post models.py; cd ..
 

@@ -1,6 +1,6 @@
 from django.db import models
 import datetime
-
+ 
 class A(models.Model):
     "base with min flags"
     c001 = models.AutoField(primary_key=True)
