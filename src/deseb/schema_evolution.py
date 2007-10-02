@@ -104,7 +104,7 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
             aka_db_tables.add( "%s_%s" % (klass._meta.app_label, x.lower()) )
     matches = list(aka_db_tables & set(table_list))
     if len(matches)==1:
-        return ops.get_change_table_name_sql( klass._meta.db_table, matches[0]), matches[0]
+        return ops.get_change_table_name_sql( klass._meta.db_table, matches[0]), klass._meta.db_table
     else:
         return [], None
     
