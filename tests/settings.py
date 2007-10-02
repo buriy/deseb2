@@ -1,3 +1,5 @@
+import deseb
+
 # Django settings for evolvedb project.
 
 DEBUG = True
@@ -83,9 +85,10 @@ INSTALLED_APPS = (
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.sites',
-    'evolvedb.case01_add_field',
-    'evolvedb.case02_rename_field',
-    'evolvedb.case03_rename_model',
-    'evolvedb.case04_change_flag',
-    'evolvedb.case05_remove_field',
+#    'case01_add_field',
+#    'case02_rename_field',
+#    'case03_rename_model',
+#    'case04_change_flag',
+#    'case05_remove_field',
+    'case666_everything',
 )

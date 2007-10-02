@@ -126,4 +126,6 @@ class DatabaseIntrospection:
                     dict['default'] = row[1][1:row[1].index("'",1)]
                 else:
                     dict['default'] = row[1]                
+                
+    #    print table_name, column_name, dict
         return dict

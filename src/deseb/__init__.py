@@ -41,10 +41,18 @@ def add_aka_support():
             func(self, *args, **kwargs)
         return inner
     
-    django.db.models.Field.__init__ = set_field_aka(django.db.models.Field.__init__)
     django.db.models.CharField.__init__ = set_field_aka(django.db.models.CharField.__init__)
-    django.db.models.IntegerField.__init__ = set_field_aka(django.db.models.IntegerField.__init__)
+    django.db.models.CommaSeparatedIntegerField.__init__ = set_field_aka(django.db.models.CommaSeparatedIntegerField.__init__)
     django.db.models.DateField.__init__ = set_field_aka(django.db.models.DateField.__init__)
+    django.db.models.Field.__init__ = set_field_aka(django.db.models.Field.__init__)
+    django.db.models.FloatField.__init__ = set_field_aka(django.db.models.FloatField.__init__)
+    django.db.models.IntegerField.__init__ = set_field_aka(django.db.models.IntegerField.__init__)
+    django.db.models.PhoneNumberField.__init__ = set_field_aka(django.db.models.PhoneNumberField.__init__)
+    django.db.models.PositiveIntegerField.__init__ = set_field_aka(django.db.models.PositiveIntegerField.__init__)
+    django.db.models.PositiveSmallIntegerField.__init__ = set_field_aka(django.db.models.PositiveSmallIntegerField.__init__)
+    django.db.models.SmallIntegerField.__init__ = set_field_aka(django.db.models.SmallIntegerField.__init__)
+    django.db.models.TextField.__init__ = set_field_aka(django.db.models.TextField.__init__)
+    django.db.models.USStateField.__init__ = set_field_aka(django.db.models.USStateField.__init__)
     
     try:
         django.db.models.Field.db_type

@@ -29,8 +29,10 @@ def get_operations_and_introspection_classes(style):
     
     backend_type = str(connection.__class__).split('.')[3]
     if backend_type=='mysql': import deseb.backends.mysql as backend
-    if backend_type=='postgresql': import deseb.backends.postgresql as backend
-    if backend_type=='sqlite3': import deseb.backends.sqlite3 as backend
+    elif backend_type=='postgresql': import deseb.backends.postgresql as backend 
+    elif backend_type=='postgresql_psycopg2': import deseb.backends.postgresql_psycopg2 as backend 
+    elif backend_type=='sqlite3': import deseb.backends.sqlite3 as backend
+    else: raise Exception('backend '+ backend_type +' not supported yet - sorry!')
     ops = backend.DatabaseOperations(connection, style)
     introspection = backend.DatabaseIntrospection(connection)
     return ops, introspection
@@ -409,8 +411,8 @@ def _get_sql_model_create(model, known_models, style):
         if f.rel:
             if f.rel.to in known_models:
                 field_output.append(style.SQL_KEYWORD('REFERENCES') + ' ' + \
-                    style.SQL_TABLE(ops.quote_name(f.rel.to._meta.db_table)) + ' (' + \
-                    style.SQL_FIELD(ops.quote_name(f.rel.to._meta.get_field(f.rel.field_name).column)) + ')' #+
+                    style.SQL_TABLE(connection.ops.quote_name(f.rel.to._meta.db_table)) + ' (' + \
+                    style.SQL_FIELD(connection.ops.quote_name(f.rel.to._meta.get_field(f.rel.field_name).column)) + ')' #+
 #                    backend.get_deferrable_sql()
                 )
             else:
@@ -419,12 +421,12 @@ def _get_sql_model_create(model, known_models, style):
                 pr = pending_references.setdefault(f.rel.to, []).append((model, f))
         table_output.append(' '.join(field_output))
     if opts.order_with_respect_to:
-        table_output.append(style.SQL_FIELD(ops.quote_name('_order')) + ' ' + \
+        table_output.append(style.SQL_FIELD(connection.ops.quote_name('_order')) + ' ' + \
             style.SQL_COLTYPE(models.IntegerField().db_type()) + ' ' + \
             style.SQL_KEYWORD('NULL'))
     for field_constraints in opts.unique_together:
         table_output.append(style.SQL_KEYWORD('UNIQUE') + ' (%s)' % \
-            ", ".join([ops.quote_name(style.SQL_FIELD(opts.get_field(f).column)) for f in field_constraints]))
+            ", ".join([connection.ops.quote_name(style.SQL_FIELD(opts.get_field(f).column)) for f in field_constraints]))
 
     full_statement = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + style.SQL_TABLE(connection.ops.quote_name(opts.db_table)) + ' (']
     for i, line in enumerate(table_output): # Combine and add commas.
@@ -512,3 +514,27 @@ def _get_many_to_many_sql_for_field(model, f, style):
                 final_output.append(stmt)
 
     return final_output
+
+def get_sql_fingerprint(app):
+    "Returns the fingerprint of the current schema, used in schema evolution."
+    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    # This should work even if a connecton isn't available
+    try:
+        cursor = connection.cursor()
+    except:
+        cursor = None
+    introspection = get_introspection_module()
+    app_name = app.__name__.split('.')[-2]
+    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
+    try:
+        # is this a schema we recognize?
+        app_se = __import__(app_name +'.schema_evolution').schema_evolution
+        schema_recognized = schema_fingerprint in app_se.fingerprints
+        if schema_recognized:
+            sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
+        else:
+            sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
+    except:
+        sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
+    return
+
