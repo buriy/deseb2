@@ -61,7 +61,7 @@ def get_sql_indexes_for_field(model, f, style):
         )
     return output
     
-def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
+def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
     "checks for model fields that are not in the existing data structure"
     from django.db import get_creation_module, models, get_introspection_module, connection
 
@@ -73,14 +73,14 @@ def get_sql_evolution_check_for_new_fields(model, new_table_name, style):
     opts = model._meta
     output = []
     db_table = model._meta.db_table
-    if new_table_name: 
-        db_table = new_table_name
+    if old_table_name: 
+        db_table = old_table_name
     existing_fields = introspection.get_columns(cursor,db_table)
     for f in opts.fields:
         if f.column not in existing_fields and (not f.aka or f.aka not in existing_fields and len(set(f.aka) & set(existing_fields))==0):
             col_type = f.db_type()
             if col_type is not None:
-                output.extend( ops.get_add_column_sql( db_table, f.column, style.SQL_COLTYPE(col_type), f.null, f.unique, f.primary_key, f.default ) )
+                output.extend( ops.get_add_column_sql( model._meta.db_table, f.column, style.SQL_COLTYPE(col_type), f.null, f.unique, f.primary_key, f.default ) )
                 output.extend( get_sql_indexes_for_field(model, f, style) )
     for f in opts.many_to_many:
         if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
@@ -104,11 +104,11 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
             aka_db_tables.add( "%s_%s" % (klass._meta.app_label, x.lower()) )
     matches = list(aka_db_tables & set(table_list))
     if len(matches)==1:
-        return ops.get_change_table_name_sql( klass._meta.db_table, matches[0]), klass._meta.db_table
+        return ops.get_change_table_name_sql( klass._meta.db_table, matches[0]), matches[0]
     else:
         return [], None
     
-def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style):
+def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
     
     ops, introspection = get_operations_and_introspection_classes(style)
@@ -119,10 +119,11 @@ def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style)
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
-    if new_table_name: 
-        db_table = new_table_name
+    if old_table_name: 
+        db_table = old_table_name
     for f in opts.fields:
         existing_fields = introspection.get_columns(cursor,db_table)
+#        print 'db_table', db_table, 'klass._meta.db_table', klass._meta.db_table, 'existing_fields', existing_fields
         if f.column not in existing_fields and f.aka and (f.aka in existing_fields or len(set(f.aka) & set(existing_fields)))==1:
             old_col = None
             if isinstance( f.aka, str ):
@@ -130,16 +131,17 @@ def get_sql_evolution_check_for_changed_field_name(klass, new_table_name, style)
             else:
                 old_col = f.aka[0]
             col_type = f.db_type()
+            col_type_def = style.SQL_COLTYPE(col_type)
             if col_type is not None:
                 col_def = style.SQL_COLTYPE(col_type) +' '+ style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
                 if f.unique:
                     col_def += style.SQL_KEYWORD(' UNIQUE')
                 if f.primary_key:
                     col_def += style.SQL_KEYWORD(' PRIMARY KEY')
-                output.extend( ops.get_change_column_name_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_def ) )
+                output.extend( ops.get_change_column_name_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_type_def, f.null, f.unique, f.primary_key, f.default ) )
     return output
     
-def get_sql_evolution_check_for_changed_field_flags(klass, new_table_name, style):
+def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
 
     ops, introspection = get_operations_and_introspection_classes(style)
     
@@ -152,8 +154,8 @@ def get_sql_evolution_check_for_changed_field_flags(klass, new_table_name, style
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
-    if new_table_name: 
-        db_table = new_table_name
+    if old_table_name: 
+        db_table = old_table_name
     for f in opts.fields:
         existing_fields = introspection.get_columns(cursor,db_table)
 #        print existing_fields
@@ -186,7 +188,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, new_table_name, style
                     #print db_table, cf, f.maxlength, introspection.get_known_column_flags(cursor, db_table, cf)
     return output
 
-def get_sql_evolution_check_for_dead_fields(klass, new_table_name, style):
+def get_sql_evolution_check_for_dead_fields(klass, old_table_name, style):
     from django.db import get_creation_module, models, get_introspection_module, connection
     from django.db.models.fields import CharField, SlugField
     from django.db.models.fields.related import RelatedField, ForeignKey
@@ -199,8 +201,8 @@ def get_sql_evolution_check_for_dead_fields(klass, new_table_name, style):
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
-    if new_table_name: 
-        db_table = new_table_name
+    if old_table_name: 
+        db_table = old_table_name
     suspect_fields = set(introspection.get_columns(cursor,db_table))
 #    print 'suspect_fields = ', suspect_fields
     for f in opts.fields:
@@ -350,20 +352,20 @@ def get_sql_evolution_detailed(app, style):
     for model in app_models:
         if model._meta.db_table: seen_tables.add(model._meta.db_table)
         
-        output, new_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
-        if new_table_name: seen_tables.add(new_table_name)
+        output, old_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
+        if old_table_name: seen_tables.add(old_table_name)
         final_output.extend(output)
         
-        output = get_sql_evolution_check_for_changed_field_flags(model, new_table_name, style)
+        output = get_sql_evolution_check_for_changed_field_flags(model, old_table_name, style)
         final_output.extend(output)
     
-        output = get_sql_evolution_check_for_changed_field_name(model, new_table_name, style)
+        output = get_sql_evolution_check_for_changed_field_name(model, old_table_name, style)
         final_output.extend(output)
         
-        output = get_sql_evolution_check_for_new_fields(model, new_table_name, style)
+        output = get_sql_evolution_check_for_new_fields(model, old_table_name, style)
         final_output.extend(output)
         
-        output = get_sql_evolution_check_for_dead_fields(model, new_table_name, style)
+        output = get_sql_evolution_check_for_dead_fields(model, old_table_name, style)
         final_output.extend(output)
         
     output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
@@ -515,7 +517,10 @@ def _get_many_to_many_sql_for_field(model, f, style):
 
     return final_output
 
-def get_sql_fingerprint(app):
+def get_sql_fingerprint_v0_96(app):
+    return get_sql_fingerprint_v0_96(app, management.style)
+
+def get_sql_fingerprint(app, style):
     "Returns the fingerprint of the current schema, used in schema evolution."
     from django.db import get_creation_module, models, backend, get_introspection_module, connection
     # This should work even if a connecton isn't available
@@ -523,7 +528,9 @@ def get_sql_fingerprint(app):
         cursor = connection.cursor()
     except:
         cursor = None
-    introspection = get_introspection_module()
+
+    ops, introspection = get_operations_and_introspection_classes(style)
+
     app_name = app.__name__.split('.')[-2]
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
     try:
