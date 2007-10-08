@@ -1,1 +1,1 @@
-from postgres import *
+from postgresql import *
