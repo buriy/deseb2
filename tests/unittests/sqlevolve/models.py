@@ -14,6 +14,7 @@ class Person(models.Model):
     name = models.CharField(maxlength=20)
     gender = models.CharField(maxlength=1, choices=GENDER_CHOICES)
     gender2 = models.CharField(maxlength=1, choices=GENDER_CHOICES, aka='gender_old')
+    ssn = models.IntegerField(default=111111111)
 
     def __unicode__(self):
         return self.name
@@ -25,6 +26,35 @@ class Muebles(models.Model):
     tipo = models.CharField(maxlength=40, default="woot")
     # new fields
     fecha_publicacion = models.DateTimeField('date published')
+
+class C(models.Model):
+    "all with akas"
+    c001 = models.AutoField(primary_key=True, aka='xxx')
+    c002 = models.BooleanField(aka='xxx')
+    c003 = models.CharField(maxlength='256', aka='xxx')
+    c004 = models.CommaSeparatedIntegerField(maxlength='256', aka='xxx')
+    c005 = models.DateField(aka='xxx')
+    c006 = models.DateTimeField(aka='xxx')
+    c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx')
+    c008 = models.EmailField(aka='xxx')
+    c010 = models.FileField(upload_to='/tmp', aka='xxx')
+    c011 = models.FilePathField(aka='xxx')
+    c012 = models.FloatField(aka='xxx')
+    c013 = models.IPAddressField(aka='xxx')
+    c014 = models.ImageField(upload_to='/tmp', aka='xxx')
+    c015 = models.IntegerField(aka='xxx')
+    c016 = models.NullBooleanField(aka='xxx')
+#    c017 = models.OrderingField(maxlength='256')
+    c018 = models.PhoneNumberField(aka='xxx')
+    c019 = models.PositiveIntegerField(aka='xxx')
+    c020 = models.PositiveSmallIntegerField(aka='xxx')
+    c021 = models.SlugField(aka='xxx')
+    c022 = models.SmallIntegerField(aka='xxx')
+    c023 = models.TextField(aka='xxx')
+    c024 = models.TimeField(aka='xxx')
+    c025 = models.URLField(aka='xxx')
+    c026 = models.USStateField(aka='xxx')
+    c027 = models.XMLField(aka='xxx')
 
 __test__ = {'API_TESTS':"""
 >>> import django
@@ -116,8 +146,11 @@ ALTER TABLE `sqlevolve_muebles` DROP COLUMN `fecha_publicacion`;
 >>> for sql in ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ): print sql; cursor.execute(sql)
 ALTER TABLE `sqlevolve_muebles` DROP COLUMN `tipo`;
 0L
+>>> for sql in ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ): print sql; cursor.execute(sql)
+ALTER TABLE `sqlevolve_person` DROP COLUMN `ssn`;
+0L
 >>> deseb.schema_evolution.get_sql_evolution(app,color_style())
-['ALTER TABLE `sqlevolve_muebles` ADD COLUMN `tipo` varchar(40) NOT NULL DEFAULT `woot`;']
+['ALTER TABLE `sqlevolve_person` ADD COLUMN `ssn` integer NOT NULL DEFAULT 111111111;', 'ALTER TABLE `sqlevolve_muebles` ADD COLUMN `tipo` varchar(40) NOT NULL DEFAULT `woot`;']
 
 """
 
@@ -184,8 +217,10 @@ ALTER TABLE "sqlevolve_muebles" DROP COLUMN "fecha_publicacion";
 # delete a column with a default value, so it looks like we've recently added a column
 >>> for sql in ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ): print sql; cursor.execute(sql)
 ALTER TABLE "sqlevolve_muebles" DROP COLUMN "tipo";
+>>> for sql in ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ): print sql; cursor.execute(sql)
+ALTER TABLE "sqlevolve_person" DROP COLUMN "ssn";
 >>> deseb.schema_evolution.get_sql_evolution(app,color_style())
-['ALTER TABLE "sqlevolve_muebles" ADD COLUMN "tipo" varchar(40);', 'ALTER TABLE "sqlevolve_muebles" ALTER COLUMN "tipo" SET DEFAULT "woot";', 'ALTER TABLE "sqlevolve_muebles" ALTER COLUMN "tipo" SET NOT NULL;']
+['ALTER TABLE "sqlevolve_person" ADD COLUMN "ssn" integer;', 'ALTER TABLE "sqlevolve_person" ALTER COLUMN "ssn" SET DEFAULT "111111111";', 'ALTER TABLE "sqlevolve_person" ALTER COLUMN "ssn" SET NOT NULL;', 'ALTER TABLE "sqlevolve_muebles" ADD COLUMN "tipo" varchar(40);', 'ALTER TABLE "sqlevolve_muebles" ALTER COLUMN "tipo" SET DEFAULT "woot";', 'ALTER TABLE "sqlevolve_muebles" ALTER COLUMN "tipo" SET NOT NULL;']
 """
 
 if settings.DATABASE_ENGINE == 'sqlite3':
