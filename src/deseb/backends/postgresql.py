@@ -25,17 +25,17 @@ class DatabaseOperations:
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' RENAME COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) +self.style.SQL_KEYWORD(' TO ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +';' )
         return output
     
-    def get_change_column_def_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
+    def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):
         output = []
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ADD COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name+'_tmp')) +' '+ self.style.SQL_KEYWORD(col_type) + ';' )
         output.append( self.style.SQL_KEYWORD('UPDATE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' SET ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name+'_tmp')) +' = '+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' DROP COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +';' )
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' RENAME COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name+'_tmp')) +self.style.SQL_KEYWORD(' TO ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
-        if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
+        if f.default and str(f.default) != 'django.db.models.fields.NOT_PROVIDED':
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(str(default))) +';' )
-        if not null:
+        if not f.null:
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET NOT NULL;') )
-        if unique:
+        if f.unique:
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ADD CONSTRAINT ')+ table_name +'_'+ col_name +'_unique_constraint'+self.style.SQL_KEYWORD(' UNIQUE(')+ self.style.SQL_FIELD(col_name) +self.style.SQL_KEYWORD(')')+';' )
         
         return output

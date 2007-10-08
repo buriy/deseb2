@@ -179,13 +179,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
                     column_flags['primary_key']!=f.primary_key:
                 col_type = f.db_type()
                 col_type_def = style.SQL_COLTYPE(col_type)
-#                col_def = style.SQL_COLTYPE(col_type) +' '+ style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
-#                if f.unique:
-#                    col_def += ' '+ style.SQL_KEYWORD('UNIQUE')
-#                if f.primary_key:
-#                    col_def += ' '+ style.SQL_KEYWORD('PRIMARY KEY')
-                output.extend( ops.get_change_column_def_sql( klass._meta.db_table, cf, col_type_def, f.null, f.unique, f.primary_key, f.default ) )
-                    #print db_table, cf, f.maxlength, introspection.get_known_column_flags(cursor, db_table, cf)
+                output.extend( ops.get_change_column_def_sql( klass._meta.db_table, cf, col_type_def, f, column_flags ) )
     return output
 
 def get_sql_evolution_check_for_dead_fields(klass, old_table_name, style):
@@ -247,8 +241,6 @@ def get_sql_evolution_v0_96(app):
 
 def get_sql_evolution(app, style):
     "Returns SQL to update an existing schema to match the existing models."
-    import deseb
-    deseb.add_aka_support()
     return get_sql_evolution_detailed(app, style)[2]
 
 def get_sql_evolution_detailed(app, style):
@@ -545,3 +537,5 @@ def get_sql_fingerprint(app, style):
         sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
     return
 
+def get_sql_all(app, style):
+    return management.sql_all(app, style)
