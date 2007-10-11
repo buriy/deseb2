@@ -14,13 +14,16 @@ class DatabaseOperations:
     def get_change_table_name_sql( self, table_name, old_table_name ):
         return [self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(old_table_name)) +self.style.SQL_KEYWORD(' RENAME TO ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) + ';']
     
-    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, null, unique, primary_key, default ):
+    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
         pk_name = None
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
         output = []
-        col_def = col_type +' '+ self.style.SQL_KEYWORD('%sNULL' % (not null and 'NOT ' or ''))
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' CHANGE COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) +' '+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +' '+ self.style.SQL_KEYWORD(col_def) + ';' )
+        col_def = col_type +' '+ self.style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
+        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name))
+                       +self.style.SQL_KEYWORD(' CHANGE COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) 
+                       +' '+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +' '
+                       + self.style.SQL_KEYWORD(col_def) + ';' )
         return output
     
     def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):

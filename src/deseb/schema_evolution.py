@@ -138,7 +138,7 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
                     col_def += style.SQL_KEYWORD(' UNIQUE')
                 if f.primary_key:
                     col_def += style.SQL_KEYWORD(' PRIMARY KEY')
-                output.extend( ops.get_change_column_name_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_type_def, f.null, f.unique, f.primary_key, f.default ) )
+                output.extend( ops.get_change_column_name_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_type_def, f ) )
     return output
     
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):

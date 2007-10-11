@@ -180,7 +180,7 @@ if settings.DATABASE_ENGINE == 'postgresql' or settings.DATABASE_ENGINE == 'post
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
 
 # rename column, so it looks like we've recently renamed a field
->>> for sql in ops.get_change_column_name_sql( 'sqlevolve_person', {}, 'gender2', 'gender_old', 'varchar(1)', False, False, False, False ): cursor.execute(sql)
+>>> for sql in ops.get_change_column_name_sql( 'sqlevolve_person', {}, 'gender2', 'gender_old', 'varchar(1)', False ): cursor.execute(sql)
 >>> deseb.schema_evolution.get_sql_evolution(app,color_style())
 ['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender_old" TO "gender2";']
 

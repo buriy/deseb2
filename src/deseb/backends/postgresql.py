@@ -16,13 +16,15 @@ class DatabaseOperations:
         output.append(self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(old_table_name)) +self.style.SQL_KEYWORD(' RENAME TO ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) + ';')
         return output
     
-    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, null, unique, primary_key, default ):
+    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
         # TODO: only supports a single primary key so far
         pk_name = None
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
         output = []
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' RENAME COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) +self.style.SQL_KEYWORD(' TO ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +';' )
+        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) 
+                       +self.style.SQL_KEYWORD(' RENAME COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) 
+                       +self.style.SQL_KEYWORD(' TO ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +';' )
         return output
     
     def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):
