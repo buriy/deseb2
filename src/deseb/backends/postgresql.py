@@ -34,7 +34,7 @@ class DatabaseOperations:
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' DROP COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +';' )
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' RENAME COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name+'_tmp')) +self.style.SQL_KEYWORD(' TO ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
         if f.default and str(f.default) != 'django.db.models.fields.NOT_PROVIDED':
-            output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(str(default))) +';' )
+            output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(str(f.default))) +';' )
         if not f.null:
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET NOT NULL;') )
         if f.unique:
