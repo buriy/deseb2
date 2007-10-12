@@ -35,11 +35,11 @@ class C(models.Model):
     c004 = models.CommaSeparatedIntegerField(maxlength='256', aka='xxx')
     c005 = models.DateField(aka='xxx')
     c006 = models.DateTimeField(aka='xxx')
-    c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx')
+#    c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx') # not in v0.96
     c008 = models.EmailField(aka='xxx')
     c010 = models.FileField(upload_to='/tmp', aka='xxx')
     c011 = models.FilePathField(aka='xxx')
-    c012 = models.FloatField(aka='xxx')
+    c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10)
     c013 = models.IPAddressField(aka='xxx')
     c014 = models.ImageField(upload_to='/tmp', aka='xxx')
     c015 = models.IntegerField(aka='xxx')
@@ -68,6 +68,8 @@ __test__ = {'API_TESTS':"""
 >>> style = color_style()
 >>> ops, introspection = deseb.schema_evolution.get_operations_and_introspection_classes(style)
 """}
+
+print settings.DATABASE_ENGINE
 
 if settings.DATABASE_ENGINE == 'mysql':
     __test__['API_TESTS'] += """

@@ -78,10 +78,10 @@ def add_aka_support():
     
 def add_management_commands(func):
     def inner(*args, **kwargs):
+        add_aka_support()
         rv = func(*args, **kwargs)
         rv['sqlevolve'] = 'deseb'
         rv['sqlfingerprint'] = 'deseb'
-        add_aka_support()
         return rv
     return inner
 

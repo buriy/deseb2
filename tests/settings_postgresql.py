@@ -77,4 +77,5 @@ INSTALLED_APPS = (
     'case04_change_flag',
     'case05_remove_field',
     'case666_everything',
+    'issue4_textfield_add',
 )

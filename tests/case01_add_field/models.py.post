@@ -23,6 +23,7 @@ class Choice(models.Model):
     hasSomething = models.BooleanField()
     creatorIp = models.IPAddressField()
     votes3 = models.IntegerField(default=5)
+    content = models.TextField()
 
 #print Poll.__class__()
 #print Choice.__class__()

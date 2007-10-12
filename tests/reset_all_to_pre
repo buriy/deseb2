@@ -5,3 +5,4 @@ cd case04_change_flag/; rm models.py; ln -sf models.py.pre models.py; cd ..
 cd case05_remove_field/; rm models.py; ln -sf models.py.pre models.py; cd ..
 cd case666_everything/; rm models.py; ln -sf models.py.pre models.py; cd ..
 
+cd issue4_textfield_add/; rm models.py; ln -sf models.py.pre models.py; cd ..
