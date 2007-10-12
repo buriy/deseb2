@@ -80,7 +80,7 @@ class DatabaseOperations:
             field_output.append((self.style.SQL_KEYWORD('UNIQUE')))
         if primary_key:
             field_output.append((self.style.SQL_KEYWORD('PRIMARY KEY')))
-        if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
+        if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
             field_output.append((self.style.SQL_KEYWORD('DEFAULT')))
             field_output.append((self.connection.ops.quote_name(str(default))))
         output.append(' '.join(field_output) + ';')

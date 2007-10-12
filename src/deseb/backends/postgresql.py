@@ -33,7 +33,7 @@ class DatabaseOperations:
         output.append( self.style.SQL_KEYWORD('UPDATE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' SET ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name+'_tmp')) +' = '+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' DROP COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +';' )
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' RENAME COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name+'_tmp')) +self.style.SQL_KEYWORD(' TO ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
-        if f.default and str(f.default) != 'django.db.models.fields.NOT_PROVIDED':
+        if f.default!=None and str(f.default) != 'django.db.models.fields.NOT_PROVIDED':
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(str(f.default))) +';' )
         if not f.null:
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET NOT NULL;') )
@@ -45,7 +45,7 @@ class DatabaseOperations:
     def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
         output = []
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ADD COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +' '+ self.style.SQL_KEYWORD(col_type) + ';' )
-        if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
+        if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.connection.ops.quote_name(str(default)) +';' )
         if not null:
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +self.style.SQL_KEYWORD(' SET NOT NULL;') )

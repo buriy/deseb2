@@ -34,7 +34,7 @@ class DatabaseOperations:
         if f.primary_key:
             col_def += ' '+ self.style.SQL_KEYWORD('PRIMARY KEY')
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' MODIFY COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +' '+ col_def + ';' )
-        if f.default and str(f.default) != 'django.db.models.fields.NOT_PROVIDED' and f.default!=column_flags['default']:
+        if f.default!=None and str(f.default) != 'django.db.models.fields.NOT_PROVIDED' and f.default!=column_flags['default']:
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' SET DEFAULT ')+ "'" + str(f.default) + '\';' )
         elif column_flags['default'] and (not f.default or str(f.default) == 'django.db.models.fields.NOT_PROVIDED'):
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' DROP DEFAULT') +';' )
@@ -53,7 +53,8 @@ class DatabaseOperations:
             field_output.append(self.style.SQL_KEYWORD('UNIQUE'))
         if primary_key:
             field_output.append(self.style.SQL_KEYWORD('PRIMARY KEY'))
-        if default and str(default) != 'django.db.models.fields.NOT_PROVIDED':
+        print 'default', default
+        if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
             field_output.append(self.style.SQL_KEYWORD('DEFAULT'))
             if col_type=='integer':
                 field_output.append(self.style.SQL_KEYWORD(str(default)))
