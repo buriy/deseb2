@@ -39,7 +39,8 @@ class C(models.Model):
     c008 = models.EmailField(aka='xxx')
     c010 = models.FileField(upload_to='/tmp', aka='xxx')
     c011 = models.FilePathField(aka='xxx')
-    c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10)
+#    c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10) # for v0.96
+    c012 = models.FloatField(aka='xxx')
     c013 = models.IPAddressField(aka='xxx')
     c014 = models.ImageField(upload_to='/tmp', aka='xxx')
     c015 = models.IntegerField(aka='xxx')
