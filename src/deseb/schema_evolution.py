@@ -515,6 +515,7 @@ def get_sql_fingerprint_v0_96(app):
 def get_sql_fingerprint(app, style):
     "Returns the fingerprint of the current schema, used in schema evolution."
     from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    from django.conf import settings
     # This should work even if a connecton isn't available
     try:
         cursor = connection.cursor()
@@ -528,7 +529,17 @@ def get_sql_fingerprint(app, style):
     try:
         # is this a schema we recognize?
         app_se = __import__(app_name +'.schema_evolution').schema_evolution
-        schema_recognized = schema_fingerprint in app_se.fingerprints
+        evolutions_list = app_se.__getattribute__(settings.DATABASE_ENGINE+'_evolutions')
+        evolutions = {}
+        fingerprints = []
+        for x in evolutions_list:
+            if evolutions.has_key(x[0]):
+                sys.stderr.write(style.NOTICE("Warning: Fingerprint mapping %s is defined twice in %s.schema_evolution\n" % (str(x[0]),app_name)))
+            else:
+                evolutions[x[0]] = x[1:]
+                if x[0][0] not in fingerprints:
+                    fingerprints.append(x[0][0])
+        schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
         else:

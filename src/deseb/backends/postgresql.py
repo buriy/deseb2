@@ -129,3 +129,13 @@ class DatabaseIntrospection:
                 else:
                     dict['default'] = row[1]                
         return dict
+    
+    def get_sequences_for_table_name(self, cursor, table_name):
+        cursor.execute("SELECT c.relname from pg_catalog.pg_class c where c.relkind='S'")
+        for row in cursor.fetchall():
+            if row[0] == table_name:
+                pass
+        
+        
+        
+        
