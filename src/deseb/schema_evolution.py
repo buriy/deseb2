@@ -284,15 +284,15 @@ def get_sql_evolution_detailed(app, style):
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
     try:
         # is this a schema we recognize?
-        app_se = __import__(app_name +'.schema_evolution').schema_evolution
-        schema_recognized = schema_fingerprint in app_se.fingerprints
+        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+        schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
             available_upgrades = []
-            for (vfrom, vto), upgrade in app_se.evolutions.iteritems():
+            for (vfrom, vto), upgrade in evolutions.iteritems():
                 if vfrom == schema_fingerprint:
                     try:
-                        distance = app_se.fingerprints.index(vto)-app_se.fingerprints.index(vfrom)
+                        distance = fingerprints.index(vto)-fingerprints.index(vfrom)
                         available_upgrades.append( ( vfrom, vto, upgrade, distance ) )
                         sys.stderr.write(style.NOTICE("\tan upgrade from %s to %s is available (distance: %i)\n" % ( vfrom, vto, distance )))
                     except:
@@ -308,7 +308,7 @@ def get_sql_evolution_detailed(app, style):
         else:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
     except:
-        # sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
+        #sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
         pass # ^^^ lets not be chatty
 
     # stolen and trimmed from syncdb so that we know which models are about 
@@ -509,25 +509,10 @@ def _get_many_to_many_sql_for_field(model, f, style):
 
     return final_output
 
-def get_sql_fingerprint_v0_96(app):
-    return get_sql_fingerprint_v0_96(app, management.style)
-
-def get_sql_fingerprint(app, style):
-    "Returns the fingerprint of the current schema, used in schema evolution."
-    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+def get_fingerprints_evolutions_from_app(app):
     from django.conf import settings
-    # This should work even if a connecton isn't available
     try:
-        cursor = connection.cursor()
-    except:
-        cursor = None
-
-    ops, introspection = get_operations_and_introspection_classes(style)
-
-    app_name = app.__name__.split('.')[-2]
-    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-    try:
-        # is this a schema we recognize?
+        app_name = app.__name__.split('.')[-2]
         app_se = __import__(app_name +'.schema_evolution').schema_evolution
         evolutions_list = app_se.__getattribute__(settings.DATABASE_ENGINE+'_evolutions')
         evolutions = {}
@@ -539,6 +524,29 @@ def get_sql_fingerprint(app, style):
                 evolutions[x[0]] = x[1:]
                 if x[0][0] not in fingerprints:
                     fingerprints.append(x[0][0])
+        return fingerprints, evolutions
+    except:
+        return [], {}
+
+def get_sql_fingerprint_v0_96(app):
+    return get_sql_fingerprint_v0_96(app, management.style)
+
+def get_sql_fingerprint(app, style):
+    "Returns the fingerprint of the current schema, used in schema evolution."
+    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    # This should work even if a connecton isn't available
+    try:
+        cursor = connection.cursor()
+    except:
+        cursor = None
+
+    ops, introspection = get_operations_and_introspection_classes(style)
+
+    app_name = app.__name__.split('.')[-2]
+    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
+    try:
+        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+        # is this a schema we recognize?
         schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))

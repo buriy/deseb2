@@ -53,7 +53,6 @@ class DatabaseOperations:
             field_output.append(self.style.SQL_KEYWORD('UNIQUE'))
         if primary_key:
             field_output.append(self.style.SQL_KEYWORD('PRIMARY KEY'))
-        print 'default', default
         if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
             field_output.append(self.style.SQL_KEYWORD('DEFAULT'))
             if col_type=='integer':
