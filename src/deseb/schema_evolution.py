@@ -3,6 +3,7 @@ from django.core.exceptions import ImproperlyConfigured
 from optparse import OptionParser
 from django.utils import termcolors
 from django.conf import settings
+from django.core.management import color
 import os, re, shutil, sys, textwrap
 try:
     import django.core.management.sql as management
@@ -239,6 +240,9 @@ def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, a
 def get_sql_evolution_v0_96(app):
     return get_sql_evolution(app, management.style)
 
+def run_sql_evolution_v0_96(app):
+    return evolvedb(app, True)
+
 def get_sql_evolution(app, style):
     "Returns SQL to update an existing schema to match the existing models."
     return get_sql_evolution_detailed(app, style)[2]
@@ -247,121 +251,22 @@ def get_sql_evolution_detailed(app, style):
     "Returns SQL to update an existing schema to match the existing models."
 
     ops, introspection = get_operations_and_introspection_classes(style)
-    
     from django.db import get_creation_module, models, backend, get_introspection_module, connection
-#    data_types = get_creation_module().DATA_TYPES
-#
-#    if not data_types:
-#        # This must be the "dummy" database backend, which means the user
-#        # hasn't set DATABASE_ENGINE.
-#        sys.stderr.write(style.ERROR("Error: Django doesn't know which syntax to use for your SQL statements,\n" +
-#            "because you haven't specified the DATABASE_ENGINE setting.\n" +
-#            "Edit your settings file and change DATABASE_ENGINE to something like 'postgresql' or 'mysql'.\n"))
-#        sys.exit(1)
-
-#    try:
-#        ops = get_ops_class(connection)
-#    except:
-#        # This must be an unsupported database backend
-#        sys.stderr.write(style.ERROR("Error: Django doesn't know which syntax to use for your SQL statements, " +
-#            "because schema evolution support isn't built into your database backend yet.  Sorry!\n"))
-#        sys.exit(1)
-
-#    # First, try validating the models.
-#    _check_for_validation_errors()
-
-    # This should work even if a connecton isn't available
-    try:
-        cursor = connection.cursor()
-    except:
-        cursor = None
-
-#    introspection = get_introspection_module()
+    cursor = connection.cursor()
     app_name = app.__name__.split('.')[-2]
 
     final_output = []
 
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-    try:
-        # is this a schema we recognize?
-        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
-        schema_recognized = schema_fingerprint in fingerprints
-        if schema_recognized:
+    schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint)
+    if schema_recognized:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
-            available_upgrades = []
-            for (vfrom, vto), upgrade in evolutions.iteritems():
-                if vfrom == schema_fingerprint:
-                    try:
-                        distance = fingerprints.index(vto)-fingerprints.index(vfrom)
-                        available_upgrades.append( ( vfrom, vto, upgrade, distance ) )
-                        sys.stderr.write(style.NOTICE("\tan upgrade from %s to %s is available (distance: %i)\n" % ( vfrom, vto, distance )))
-                    except:
-                        available_upgrades.append( ( vfrom, vto, upgrade, -1 ) )
-                        sys.stderr.write(style.NOTICE("\tan upgrade from %s to %s is available, but %s is not in schema_evolution.fingerprints\n" % ( vfrom, vto, vto )))
-            if len(available_upgrades):
-                best_upgrade = available_upgrades[0]
-                for an_upgrade in available_upgrades:
-                    if an_upgrade[3] > best_upgrade[3]:
-                        best_upgrade = an_upgrade
-                final_output.extend( best_upgrade[2] )
-                return schema_fingerprint, False, final_output
-        else:
-            sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
-    except:
-        #sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
-        pass # ^^^ lets not be chatty
+            final_output.extend( best_upgrade[2] )
+            return schema_fingerprint, False, final_output
+    else:
+        sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
 
-    # stolen and trimmed from syncdb so that we know which models are about 
-    # to be created (so we don't check them for updates)
-    table_list = get_introspection_module().get_table_list(cursor)
-    seen_models = management.installed_models(table_list)
-    created_models = set()
-    pending_references = {}
-    
-    model_list = models.get_models(app)
-    for model in model_list:
-        # Create the model's database table, if it doesn't already exist.
-        aka_db_tables = set()
-        if model._meta.aka:
-            for x in model._meta.aka:
-                aka_db_tables.add( "%s_%s" % (model._meta.app_label, x.lower()) )
-        if model._meta.db_table in table_list or len(aka_db_tables & set(table_list))>0:
-            continue
-        sql, references = _get_sql_model_create(model, seen_models, style)
-        final_output.extend(sql)
-        seen_models.add(model)
-        created_models.add(model)
-        table_list.append(model._meta.db_table)
-
-    # get the existing models, minus the models we've just created
-    app_models = models.get_models(app)
-    for model in created_models:
-        if model in app_models:
-            app_models.remove(model)
-
-    seen_tables = set()
-
-    for model in app_models:
-        if model._meta.db_table: seen_tables.add(model._meta.db_table)
-        
-        output, old_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
-        if old_table_name: seen_tables.add(old_table_name)
-        final_output.extend(output)
-        
-        output = get_sql_evolution_check_for_changed_field_flags(model, old_table_name, style)
-        final_output.extend(output)
-    
-        output = get_sql_evolution_check_for_changed_field_name(model, old_table_name, style)
-        final_output.extend(output)
-        
-        output = get_sql_evolution_check_for_new_fields(model, old_table_name, style)
-        final_output.extend(output)
-        
-        output = get_sql_evolution_check_for_dead_fields(model, old_table_name, style)
-        final_output.extend(output)
-        
-    output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
-    final_output.extend(output)
+    final_output.extend( get_introspected_evolution_options(app, style) )
         
     return schema_fingerprint, True, final_output
 
@@ -517,6 +422,7 @@ def get_fingerprints_evolutions_from_app(app):
         evolutions_list = app_se.__getattribute__(settings.DATABASE_ENGINE+'_evolutions')
         evolutions = {}
         fingerprints = []
+        end_fingerprints = []
         for x in evolutions_list:
             if evolutions.has_key(x[0]):
                 sys.stderr.write(style.NOTICE("Warning: Fingerprint mapping %s is defined twice in %s.schema_evolution\n" % (str(x[0]),app_name)))
@@ -524,6 +430,9 @@ def get_fingerprints_evolutions_from_app(app):
                 evolutions[x[0]] = x[1:]
                 if x[0][0] not in fingerprints:
                     fingerprints.append(x[0][0])
+                if x[0][1] not in fingerprints and x[0][1] not in end_fingerprints:
+                    end_fingerprints.append(x[0][1])
+        fingerprints.extend(end_fingerprints)
         return fingerprints, evolutions
     except:
         return [], {}
@@ -558,3 +467,155 @@ def get_sql_fingerprint(app, style):
 
 def get_sql_all(app, style):
     return management.sql_all(app, style)
+
+def get_managed_evolution_options(app, schema_fingerprint):
+    # return schema_recognized, available_upgrades, best_upgrade
+#    try:
+        # is this a schema we recognize?
+        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+        schema_recognized = schema_fingerprint in fingerprints
+        if schema_recognized:
+            available_upgrades = []
+            for (vfrom, vto), upgrade in evolutions.iteritems():
+                if vfrom == schema_fingerprint:
+                    distance = fingerprints.index(vto)-fingerprints.index(vfrom)
+                    available_upgrades.append( ( vfrom, vto, upgrade, distance ) )
+            if len(available_upgrades):
+                best_upgrade = available_upgrades[0]
+                for an_upgrade in available_upgrades:
+                    if an_upgrade[3] > best_upgrade[3]:
+                        best_upgrade = an_upgrade
+                return schema_recognized, available_upgrades, best_upgrade
+            else:
+                return schema_recognized, available_upgrades, None
+        else:
+            return False, [], None
+#    except:
+#        print sys.exc_info()[0]
+#        return False, [], None
+
+def get_introspected_evolution_options(app, style):
+    ops, introspection = get_operations_and_introspection_classes(style)
+    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    cursor = connection.cursor()
+    app_name = app.__name__.split('.')[-2]
+
+    final_output = []
+
+    table_list = get_introspection_module().get_table_list(cursor)
+    seen_models = management.installed_models(table_list)
+    created_models = set()
+    pending_references = {}
+    final_output = []
+    
+    model_list = models.get_models(app)
+    for model in model_list:
+        # Create the model's database table, if it doesn't already exist.
+        aka_db_tables = set()
+        if model._meta.aka:
+            for x in model._meta.aka:
+                aka_db_tables.add( "%s_%s" % (model._meta.app_label, x.lower()) )
+        if model._meta.db_table in table_list or len(aka_db_tables & set(table_list))>0:
+            continue
+        sql, references = _get_sql_model_create(model, seen_models, style)
+        final_output.extend(sql)
+        seen_models.add(model)
+        created_models.add(model)
+        table_list.append(model._meta.db_table)
+
+    # get the existing models, minus the models we've just created
+    app_models = models.get_models(app)
+    for model in created_models:
+        if model in app_models:
+            app_models.remove(model)
+
+    seen_tables = set()
+
+    for model in app_models:
+        if model._meta.db_table: seen_tables.add(model._meta.db_table)
+        
+        output, old_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
+        if old_table_name: seen_tables.add(old_table_name)
+        final_output.extend(output)
+        
+        output = get_sql_evolution_check_for_changed_field_flags(model, old_table_name, style)
+        final_output.extend(output)
+    
+        output = get_sql_evolution_check_for_changed_field_name(model, old_table_name, style)
+        final_output.extend(output)
+        
+        output = get_sql_evolution_check_for_new_fields(model, old_table_name, style)
+        final_output.extend(output)
+        
+        output = get_sql_evolution_check_for_dead_fields(model, old_table_name, style)
+        final_output.extend(output)
+        
+    output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
+    final_output.extend(output)
+
+    return final_output
+
+
+def evolvedb(app, interactive):
+    from django.db import connection
+    cursor = connection.cursor()
+
+    style = color.no_style()
+    ops, introspection = get_operations_and_introspection_classes(style)
+    app_name = app.__name__.split('.')[-2]
+    
+    last_schema_fingerprint = None
+    
+    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+    if fingerprints and evolutions:
+        print '%s.schema_evolution module found - reading managed evolutions (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
+
+    while True:
+        
+        commands = []
+        commands_color = []
+    
+        schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
+        schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint)
+        if schema_recognized:
+            print "schema fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
+            if available_upgrades and best_upgrade:
+                print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1]
+                commands_color = commands = best_upgrade[2]
+        else:
+            commands = get_introspected_evolution_options(app, style)
+            commands_color = get_introspected_evolution_options(app, color.color_style())
+            if commands:
+                print '%s: the following introspection-based schema upgrade commands are available:' % app_name
+#            else:
+#                print '%s: schema is up to date' % app_name
+            
+        if commands:
+            for cmd in commands_color:
+                print cmd
+        else:
+            break
+    
+        if interactive:
+            confirm = raw_input("do you want to run the preceeding commands?\ntype 'yes' to continue, or 'no' to cancel: ")
+        else:
+            confirm = 'yes'
+
+        if confirm == 'yes':
+            for cmd in commands:
+                cursor.execute(cmd)
+            print 'schema upgrade executed'
+            if not schema_recognized: break
+        else:
+            print 'schema upgrade aborted'
+            break
+                
+        # store commands?
+            
+        last_schema_fingerprint = schema_fingerprint
+        schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
+        if schema_fingerprint == last_schema_fingerprint:
+            break
+        
+    
+    

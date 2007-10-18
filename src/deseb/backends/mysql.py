@@ -5,6 +5,15 @@ except NameError: from sets import Set as set   # Python 2.3 fallback
 
 class DatabaseOperations:
     
+    def quote_value(self, s):
+        if type(s) is bool:
+            if s: return "'t'"
+            else: return "'f'"
+        if type(s) is int:
+            return str(s)
+        else:
+            return u"'%s'" % unicode(s).replace("'","\'")
+
     def __init__(self, connection, style):
         self.connection = connection
         self.style = style
@@ -35,7 +44,7 @@ class DatabaseOperations:
             col_def += ' '+ self.style.SQL_KEYWORD('PRIMARY KEY')
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' MODIFY COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +' '+ col_def + ';' )
         if f.default!=None and str(f.default) != 'django.db.models.fields.NOT_PROVIDED' and f.default!=column_flags['default']:
-            output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' SET DEFAULT ')+ "'" + str(f.default) + '\';' )
+            output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.quote_value(f.default) + ';' )
         elif column_flags['default'] and (not f.default or str(f.default) == 'django.db.models.fields.NOT_PROVIDED'):
             output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' DROP DEFAULT') +';' )
         return output
@@ -55,10 +64,7 @@ class DatabaseOperations:
             field_output.append(self.style.SQL_KEYWORD('PRIMARY KEY'))
         if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
             field_output.append(self.style.SQL_KEYWORD('DEFAULT'))
-            if col_type=='integer':
-                field_output.append(self.style.SQL_KEYWORD(str(default)))
-            else:
-                field_output.append((self.connection.ops.quote_name(str(default))))
+            field_output.append((self.quote_value(default)))
         output.append(' '.join(field_output) + ';')
         return output
     
