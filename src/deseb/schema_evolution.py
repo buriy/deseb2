@@ -176,7 +176,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
                     ( not f.primary_key and isinstance(f, CharField) and column_flags['maxlength']!=str(f.maxlength) ) or \
                     ( not f.primary_key and isinstance(f, SlugField) and column_flags['maxlength']!=str(f.maxlength) ) or \
                     ( column_flags['unique']!=f.unique and ( settings.DATABASE_ENGINE!='postgresql' or not f.primary_key ) ) or \
-                    column_flags['default']!=f.default or \
+                    str(column_flags['default'])!=str(f.default) or \
                     column_flags['primary_key']!=f.primary_key:
                 col_type = f.db_type()
                 col_type_def = style.SQL_COLTYPE(col_type)

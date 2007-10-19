@@ -36,6 +36,7 @@ class DatabaseOperations:
         return output
     
     def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):
+        from django.db.models.fields import NOT_PROVIDED
         output = []
         col_def = col_type +' '+ self.style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
         if f.unique:
@@ -43,10 +44,11 @@ class DatabaseOperations:
         if f.primary_key:
             col_def += ' '+ self.style.SQL_KEYWORD('PRIMARY KEY')
         output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' MODIFY COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +' '+ col_def + ';' )
-        if f.default!=None and str(f.default) != 'django.db.models.fields.NOT_PROVIDED' and f.default!=column_flags['default']:
-            output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.quote_value(f.default) + ';' )
-        elif column_flags['default'] and (not f.default or str(f.default) == 'django.db.models.fields.NOT_PROVIDED'):
-            output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' DROP DEFAULT') +';' )
+        if f.default!=column_flags['default']:
+            if f.default!=NOT_PROVIDED:
+                output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.quote_value(f.default) + ';' )
+            else:
+                output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' DROP DEFAULT') +';' )
         return output
     
     def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):

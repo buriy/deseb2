@@ -45,6 +45,7 @@ class DatabaseOperations:
         return output
     
     def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):
+        from django.db.models.fields import NOT_PROVIDED
         output = []
         qn = self.connection.ops.quote_name
         output.append( 
@@ -69,14 +70,22 @@ class DatabaseOperations:
             self.style.SQL_FIELD(qn(col_name+'_tmp')) + \
             self.style.SQL_KEYWORD(' TO ') + \
             self.style.SQL_FIELD(qn(col_name)) + ';' )
-        if f.default!=None and str(f.default) != 'django.db.models.fields.NOT_PROVIDED':
-            output.append( 
-                self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                self.style.SQL_TABLE(qn(table_name)) + \
-                self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
-                self.style.SQL_FIELD(qn(col_name)) + \
-                self.style.SQL_KEYWORD(' SET DEFAULT ') + \
-                self.style.SQL_FIELD(self.quote_value(f.default)) + ';' )
+        if f.default!=column_flags['default']:
+            if f.default!=NOT_PROVIDED:
+                output.append( 
+                    self.style.SQL_KEYWORD('ALTER TABLE ') + \
+                    self.style.SQL_TABLE(qn(table_name)) + \
+                    self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
+                    self.style.SQL_FIELD(qn(col_name)) + \
+                    self.style.SQL_KEYWORD(' SET DEFAULT ') + \
+                    self.style.SQL_FIELD(self.quote_value(f.default)) + ';' )
+            else:
+                output.append( 
+                    self.style.SQL_KEYWORD('ALTER TABLE ') + \
+                    self.style.SQL_TABLE(qn(table_name)) + \
+                    self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
+                    self.style.SQL_FIELD(qn(col_name)) + \
+                    self.style.SQL_KEYWORD(' DROP DEFAULT;') )
         if not f.null:
             output.append( 
                 self.style.SQL_KEYWORD('ALTER TABLE ') + \
