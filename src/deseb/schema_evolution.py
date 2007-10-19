@@ -116,7 +116,6 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
 
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
-#    introspection = ops = get_ops_class(connection)
     opts = klass._meta
     output = []
     db_table = klass._meta.db_table
@@ -124,13 +123,13 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
         db_table = old_table_name
     for f in opts.fields:
         existing_fields = introspection.get_columns(cursor,db_table)
-#        print 'db_table', db_table, 'klass._meta.db_table', klass._meta.db_table, 'existing_fields', existing_fields
-        if f.column not in existing_fields and f.aka and (f.aka in existing_fields or len(set(f.aka) & set(existing_fields)))==1:
-            old_col = None
-            if isinstance( f.aka, str ):
-                old_col = f.aka
-            else:
-                old_col = f.aka[0]
+        if f.column in existing_fields:
+            old_col = f.column
+        elif f.aka and len(set(f.aka).intersection(set(existing_fields)))==1:
+            old_col = set(f.aka).intersection(set(existing_fields)).pop()
+        else:
+            continue
+        if old_col != f.column:
             col_type = f.db_type()
             col_type_def = style.SQL_COLTYPE(col_type)
             if col_type is not None:
@@ -159,14 +158,11 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
         db_table = old_table_name
     for f in opts.fields:
         existing_fields = introspection.get_columns(cursor,db_table)
-#        print existing_fields
         cf = None # current field, ie what it is before any renames
         if f.column in existing_fields:
             cf = f.column
-        elif f.aka in existing_fields:
-            cf = f.aka
-        elif f.aka and len(set(f.aka) & set(existing_fields))==1:
-            cf = f.aka[0]
+        elif f.aka and len(set(f.aka).intersection(set(existing_fields)))==1:
+            cf = set(f.aka).intersection(set(existing_fields)).pop()
         else:
             continue # no idea what column you're talking about - should be handled by get_sql_evolution_check_for_new_fields())
         data_type = f.get_internal_type()
