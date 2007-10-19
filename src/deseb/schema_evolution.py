@@ -172,11 +172,11 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
         data_type = f.get_internal_type()
         if data_types.has_key(data_type):
             column_flags = introspection.get_known_column_flags(cursor, db_table, cf)
-#            print db_table, cf, column_flags
             if column_flags['allow_null']!=f.null or \
                     ( not f.primary_key and isinstance(f, CharField) and column_flags['maxlength']!=str(f.maxlength) ) or \
                     ( not f.primary_key and isinstance(f, SlugField) and column_flags['maxlength']!=str(f.maxlength) ) or \
                     ( column_flags['unique']!=f.unique and ( settings.DATABASE_ENGINE!='postgresql' or not f.primary_key ) ) or \
+                    column_flags['default']!=f.default or \
                     column_flags['primary_key']!=f.primary_key:
                 col_type = f.db_type()
                 col_type_def = style.SQL_COLTYPE(col_type)

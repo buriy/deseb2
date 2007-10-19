@@ -37,6 +37,8 @@ def add_aka_support():
                 self.aka = None
             if kwargs.has_key('aka'):
                 self.aka = kwargs['aka']
+                if self.aka.__class__.__name__=='str':
+                    self.aka = (self.aka,)
                 del kwargs['aka']
             func(self, *args, **kwargs)
         return inner
@@ -69,7 +71,7 @@ def add_aka_support():
                 if meta_attrs.has_key('aka'):
                     self.aka = meta_attrs['aka']
                     if self.aka.__class__.__name__=='str':
-                        self.aka = (self.aka)
+                        self.aka = (self.aka,)
                     del meta_attrs['aka']
             func(self, cls, name)
         return inner

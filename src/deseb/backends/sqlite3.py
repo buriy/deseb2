@@ -141,6 +141,7 @@ class DatabaseIntrospection:
             return []
         
     def get_known_column_flags( self, cursor, table_name, column_name ):
+        import django.db.models.fields
         cursor.execute("PRAGMA table_info(%s)" % self.connection.ops.quote_name(table_name))
         dict = {}
         dict['primary_key'] = False
@@ -163,6 +164,8 @@ class DatabaseIntrospection:
                 
                 # default value check goes here
                 dict['default'] = row[4]
+                if not dict['default']:
+                    dict['default'] = django.db.models.fields.NOT_PROVIDED
     
         cursor.execute("PRAGMA index_list(%s)" % self.connection.ops.quote_name(table_name))
         index_names = []

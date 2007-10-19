@@ -165,6 +165,7 @@ class DatabaseIntrospection:
             return []
         
     def get_known_column_flags( self, cursor, table_name, column_name ):
+        import django.db.models.fields
     #    print "SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name
         cursor.execute("SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name)
         dict = {}
@@ -209,6 +210,8 @@ class DatabaseIntrospection:
                     dict['default'] = row[1][1:row[1].index("'",1)]
                 else:
                     dict['default'] = row[1]                
+        if not dict['default']:
+            dict['default'] = django.db.models.fields.NOT_PROVIDED
         return dict
     
     def get_sequences_for_table_name(self, cursor, table_name):

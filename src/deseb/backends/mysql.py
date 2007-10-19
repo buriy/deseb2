@@ -122,6 +122,7 @@ class DatabaseIntrospection:
             return []
         
     def get_known_column_flags( self, cursor, table_name, column_name ):
+        import django.db.models.fields
         cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
         dict = {}
         for row in cursor.fetchall():
@@ -147,6 +148,8 @@ class DatabaseIntrospection:
                 # if row[4]=='NULL': dict['default'] = None
                 # else: dict['default'] = row[4]
                 dict['default'] = row[4]
+                if not dict['default']:
+                    dict['default'] = django.db.models.fields.NOT_PROVIDED
                 
         # print table_name, column_name, dict
         return dict
