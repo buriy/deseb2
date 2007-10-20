@@ -120,7 +120,7 @@ class DatabaseOperations:
                 self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
                 self.style.SQL_FIELD(qn(col_name)) + \
                 self.style.SQL_KEYWORD(' SET DEFAULT ') + \
-                self.style.SQL_FIELD(self.quote_value(f.default)) + ';' )
+                self.style.SQL_FIELD(self.quote_value(default)) + ';' )
         if not null:
             output.append( 
                 self.style.SQL_KEYWORD('ALTER TABLE ') + \
@@ -140,6 +140,7 @@ class DatabaseOperations:
         return output
     
     def get_drop_column_sql( self, table_name, col_name ):
+        qn = self.connection.ops.quote_name
         output = []
         output.append( 
             self.style.SQL_KEYWORD('ALTER TABLE ') + \
@@ -181,7 +182,6 @@ class DatabaseIntrospection:
         dict['primary_key'] = False
         dict['foreign_key'] = False
         dict['unique'] = False
-        dict['default'] = ''
         dict['allow_null'] = False
     
         for row in cursor.fetchall():
@@ -218,9 +218,11 @@ class DatabaseIntrospection:
                 if row[1][0] == "'":
                     dict['default'] = row[1][1:row[1].index("'",1)]
                 else:
-                    dict['default'] = row[1]                
-        if not dict['default']:
+                    dict['default'] = row[1]
+        if not dict.has_key('default'):
             dict['default'] = django.db.models.fields.NOT_PROVIDED
+        if dict['default'] == 'false': dict['default'] = False
+        if dict['default'] == 'true': dict['default'] = True
         return dict
     
     def get_sequences_for_table_name(self, cursor, table_name):
