@@ -37,3 +37,13 @@ this technique won't work on that OS.  Windows users will have to copy the
 file manually.  (or rename or whatever)  Note that this also applies to the
 "reset_all_to_XXX" scripts, as they use symlinks to swap the models.py files.
 
+
+ Windows tests
+===============
+
+All tests from previous section were ported to Windows (2000, XP, Vista).
+
+Use unittests.bat to run unit tests
+Use modeltests.bat to run model tests
+
+You also can copy your settings file to settings.py and run 
