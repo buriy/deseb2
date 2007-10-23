@@ -3,14 +3,23 @@ from django.core.exceptions import ImproperlyConfigured
 from optparse import OptionParser
 from django.utils import termcolors
 from django.conf import settings
-from django.core.management import color
 import os, re, shutil, sys, textwrap
 try:
     import django.core.management.sql as management
+    from django.core.management import color
 except:
     # v0.96 compatibility
     import django.core.management as management
     management.installed_models = management._get_installed_models
+    class color_class:
+        def color_style(self):
+            return management.style
+        def no_style(self):
+            class no_style:
+                def __getattr__(self, attr):
+                    return lambda x: x
+            return no_style()
+    color = color_class()
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
@@ -174,6 +183,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
                     ( column_flags['unique']!=f.unique and ( settings.DATABASE_ENGINE!='postgresql' or not f.primary_key ) ) or \
                     str(column_flags['default'])!=str(f.default) or \
                     column_flags['primary_key']!=f.primary_key:
+                #print "cf, f.default, column_flags['default']", cf, f.default, column_flags['default'], f.default.__class__
                 col_type = f.db_type()
                 col_type_def = style.SQL_COLTYPE(col_type)
                 output.extend( ops.get_change_column_def_sql( klass._meta.db_table, cf, col_type_def, f, column_flags ) )
