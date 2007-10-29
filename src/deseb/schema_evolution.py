@@ -263,7 +263,7 @@ def get_sql_evolution_detailed(app, style):
     final_output = []
 
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-    schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint)
+    schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
     if schema_recognized:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
             final_output.extend( best_upgrade[2] )
