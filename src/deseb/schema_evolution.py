@@ -32,8 +32,7 @@ def get_operations_and_introspection_classes(style):
     try: # v0.96 compatibility
         v0_96_quote_name = backend.quote_name
         setattr(connection, 'ops', dummy())
-        setattr(connection.ops, 'quote_name', backend.quote_name)
-        ops.quote_name = v0_96_quote_name
+        setattr(connection.ops, 'quote_name', v0_96_quote_name)
     except:
         pass
     
@@ -420,7 +419,7 @@ def _get_many_to_many_sql_for_field(model, f, style):
 
     return final_output
 
-def get_fingerprints_evolutions_from_app(app):
+def get_fingerprints_evolutions_from_app(app, style):
     from django.conf import settings
     try:
         app_name = app.__name__.split('.')[-2]
@@ -444,7 +443,7 @@ def get_fingerprints_evolutions_from_app(app):
         return [], {}
 
 def get_sql_fingerprint_v0_96(app):
-    return get_sql_fingerprint_v0_96(app, management.style)
+    return get_sql_fingerprint(app, management.style)
 
 def get_sql_fingerprint(app, style):
     "Returns the fingerprint of the current schema, used in schema evolution."
@@ -474,11 +473,11 @@ def get_sql_fingerprint(app, style):
 def get_sql_all(app, style):
     return management.sql_all(app, style)
 
-def get_managed_evolution_options(app, schema_fingerprint):
+def get_managed_evolution_options(app, schema_fingerprint, style):
     # return schema_recognized, available_upgrades, best_upgrade
 #    try:
         # is this a schema we recognize?
-        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style)
         schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
             available_upgrades = []
@@ -582,7 +581,7 @@ def evolvedb(app, interactive):
         commands_color = []
     
         schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-        schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint)
+        schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
         if schema_recognized:
             print "schema fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
             if available_upgrades and best_upgrade:

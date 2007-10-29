@@ -88,7 +88,7 @@ def add_management_commands(func):
         return rv
     return inner
 
-def add_management_command_evolvedb_v0_96():
+def management_command_evolvedb_v0_96():
     def inner(*args, **kwargs):
         "Output the SQL ALTER statements to bring your schema up to date with your models."
         import schema_evolution
@@ -96,7 +96,7 @@ def add_management_command_evolvedb_v0_96():
     inner.args = '[--format]' + django.core.management.APP_ARGS
     return inner
 
-def add_management_command_sqlevolve_v0_96():
+def management_command_sqlevolve_v0_96():
     def inner(*args, **kwargs):
         "Output the SQL ALTER statements to bring your schema up to date with your models."
         import schema_evolution
@@ -104,11 +104,11 @@ def add_management_command_sqlevolve_v0_96():
     inner.args = '[--format]' + django.core.management.APP_ARGS
     return inner
 
-def add_management_command_sqlfingerprint_v0_96():
+def management_command_sqlfingerprint_v0_96():
     def inner(*args, **kwargs):
         "Output the SQL ALTER statements to bring your schema up to date with your models."
         import schema_evolution
-        return schema_evolution.get_sql_evolution_v0_96(*args, **kwargs)
+        return schema_evolution.get_sql_fingerprint_v0_96(*args, **kwargs)
     inner.args = '[--format]' + django.core.management.APP_ARGS
     return inner
 
@@ -121,8 +121,8 @@ def execute_from_command_line_v0_96(func):
 try:
     django.core.management.get_commands = add_management_commands(django.core.management.get_commands)
 except:
-    django.core.management.DEFAULT_ACTION_MAPPING['evolvedb'] = add_management_command_evolvedb_v0_96()
-    django.core.management.DEFAULT_ACTION_MAPPING['sqlevolve'] = add_management_command_sqlevolve_v0_96()
-    django.core.management.DEFAULT_ACTION_MAPPING['fingerprint'] = add_management_command_sqlfingerprint_v0_96()
+    django.core.management.DEFAULT_ACTION_MAPPING['evolvedb'] = management_command_evolvedb_v0_96()
+    django.core.management.DEFAULT_ACTION_MAPPING['sqlevolve'] = management_command_sqlevolve_v0_96()
+    django.core.management.DEFAULT_ACTION_MAPPING['fingerprint'] = management_command_sqlfingerprint_v0_96()
     django.core.management.execute_from_command_line = execute_from_command_line_v0_96(django.core.management.execute_from_command_line)
     
