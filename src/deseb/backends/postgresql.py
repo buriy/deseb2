@@ -210,9 +210,12 @@ class DatabaseIntrospection:
         if unique_conname and unique_conname not in shared_unique_connames:
             dict['unique'] = True
             
-                # default value check goes here
+        # default value check goes here
+        cursor.execute("SELECT character_maximum_length, is_nullable, column_default FROM information_schema.columns WHERE table_name = %s AND column_name = %s" , [table_name,column_name])
+        print 'cursor.fetchall()', cursor.fetchall()
         cursor.execute("select pg_attribute.attname, adsrc from pg_attrdef, pg_attribute WHERE pg_attrdef.adrelid=pg_attribute.attrelid and pg_attribute.attnum=pg_attrdef.adnum and pg_attrdef.adrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$')" % table_name )
         for row in cursor.fetchall():
+            print column_name, row
             if row[0] == column_name:
                 if row[1][0:7] == 'nextval': continue
                 if row[1][0] == "'":
