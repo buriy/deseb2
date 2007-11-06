@@ -607,8 +607,10 @@ def evolvedb(app, interactive):
             confirm = 'yes'
 
         if confirm == 'yes':
+            connection._commit() # clean previous commands run state
             for cmd in commands:
                 cursor.execute(cmd)
+            connection._commit() # commit changes
             print 'schema upgrade executed'
             if not schema_recognized: break
         else:
