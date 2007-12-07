@@ -571,7 +571,7 @@ def evolvedb(app, interactive):
     
     last_schema_fingerprint = None
     
-    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style)
     if fingerprints and evolutions:
         print '%s.schema_evolution module found - reading managed evolutions (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
 
