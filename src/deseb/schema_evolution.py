@@ -3,7 +3,7 @@ from django.core.exceptions import ImproperlyConfigured
 from optparse import OptionParser
 from django.utils import termcolors
 from django.conf import settings
-import os, re, shutil, sys, textwrap
+import os, re, shutil, sys, textwrap, datetime
 try:
     import django.core.management.sql as management
     from django.core.management import color
@@ -263,7 +263,7 @@ def get_sql_evolution_detailed(app, style):
     final_output = []
 
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-    schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
+    schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
     if schema_recognized:
             sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
             final_output.extend( best_upgrade[2] )
@@ -481,7 +481,9 @@ def get_managed_evolution_options(app, schema_fingerprint, style):
         schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
             available_upgrades = []
+            all_upgrade_paths = set()
             for (vfrom, vto), upgrade in evolutions.iteritems():
+                all_upgrade_paths.add( (vfrom, vto) )
                 if vfrom == schema_fingerprint:
                     distance = fingerprints.index(vto)-fingerprints.index(vfrom)
                     available_upgrades.append( ( vfrom, vto, upgrade, distance ) )
@@ -490,11 +492,11 @@ def get_managed_evolution_options(app, schema_fingerprint, style):
                 for an_upgrade in available_upgrades:
                     if an_upgrade[3] > best_upgrade[3]:
                         best_upgrade = an_upgrade
-                return schema_recognized, available_upgrades, best_upgrade
+                return schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade
             else:
-                return schema_recognized, available_upgrades, None
+                return schema_recognized, all_upgrade_paths, available_upgrades, None
         else:
-            return False, [], None
+            return False, set(), [], None
 #    except:
 #        print sys.exc_info()[0]
 #        return False, [], None
@@ -561,6 +563,45 @@ def get_introspected_evolution_options(app, style):
     return final_output
 
 
+def save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint ):
+    from django.conf import settings
+    app_name = app.__name__.split('.')[-2]
+    
+    # find path to app
+    se_file = None
+    for p in sys.path:
+        if os.path.isdir( os.path.join( p, app_name ) ) and app_name!='deseb':
+            se_file = os.path.join( p, app_name, 'schema_evolution.py' )
+    
+    if os.path.isfile(se_file):
+        file = open(se_file, 'r')
+        contents = file.readlines()
+    else:
+        contents = []
+        
+    insertion_point = None
+    for i in range(0, len(contents)):
+        if contents[i].strip().endswith("## "+ settings.DATABASE_ENGINE +"_evolutions_end ##"):
+            insertion_point = i
+    if insertion_point==None:
+        contents.extend( [
+            "\n",
+            "# all of your evolution scripts, mapping the from_version and to_version to a list if sql commands\n",
+            settings.DATABASE_ENGINE +"_evolutions = [\n",
+            "] # don't delete this comment! ## "+ settings.DATABASE_ENGINE +"_evolutions_end ##\n",
+        ])
+        insertion_point = len(contents) - 1
+        
+    contents.insert( insertion_point, '    ],\n' )
+    for i in range( len(commands)-1, -1, -1 ):
+        contents.insert( insertion_point, '        "'+ commands[i].replace('"','\\"').replace('\n','\\n') +'",\n' )
+    contents.insert( insertion_point, "    [('%s','%s'), # generated %s\n" % (schema_fingerprint, new_schema_fingerprint, datetime.datetime.now()) )
+    
+    file = open(se_file, 'w')
+    file.writelines(contents)
+    
+
+
 def evolvedb(app, interactive):
     from django.db import connection
     cursor = connection.cursor()
@@ -570,10 +611,11 @@ def evolvedb(app, interactive):
     app_name = app.__name__.split('.')[-2]
     
     last_schema_fingerprint = None
+    seen_schema_fingerprints = set()
     
     fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style)
     if fingerprints and evolutions:
-        print '%s.schema_evolution module found - reading managed evolutions (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
+        print '%s.schema_evolution module found (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
 
     while True:
         
@@ -581,17 +623,21 @@ def evolvedb(app, interactive):
         commands_color = []
     
         schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-        schema_recognized, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
-        if schema_recognized:
-            print "schema fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
-            if available_upgrades and best_upgrade:
-                print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1]
-                commands_color = commands = best_upgrade[2]
+        schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
+        if fingerprints and evolutions:
+            if schema_recognized:
+                print "fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
+            else:
+                print "fingerprint for '%s' is '%s' (unrecognized)" % (app_name, schema_fingerprint)
+        managed_upgrade = schema_recognized and available_upgrades and best_upgrade and best_upgrade[3]>0
+        if managed_upgrade:
+            print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1], best_upgrade[3]
+            commands_color = commands = best_upgrade[2]
         else:
             commands = get_introspected_evolution_options(app, style)
             commands_color = get_introspected_evolution_options(app, color.color_style())
             if commands:
-                print '%s: the following introspection-based schema upgrade commands are available:' % app_name
+                print '%s: the following schema upgrade is available:' % app_name
 #            else:
 #                print '%s: schema is up to date' % app_name
             
@@ -605,23 +651,41 @@ def evolvedb(app, interactive):
             confirm = raw_input("do you want to run the preceeding commands?\ntype 'yes' to continue, or 'no' to cancel: ")
         else:
             confirm = 'yes'
-
         if confirm == 'yes':
             connection._commit() # clean previous commands run state
             for cmd in commands:
                 cursor.execute(cmd)
             connection._commit() # commit changes
             print 'schema upgrade executed'
-            if not schema_recognized: break
+            new_schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
+            
+            if commands and not managed_upgrade and (schema_fingerprint,new_schema_fingerprint) not in all_upgrade_paths:
+                if interactive:
+                    confirm = raw_input("do you want to save these commands in %s.schema_evolution?\ntype 'yes' to continue, or 'no' to cancel: " % app_name)
+                else:
+                    confirm = 'yes'
+                if confirm == 'yes':
+                    save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint )
+            
+            
+            if not managed_upgrade: break
         else:
             print 'schema upgrade aborted'
             break
-                
-        # store commands?
-            
-        last_schema_fingerprint = schema_fingerprint
-        schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-        if schema_fingerprint == last_schema_fingerprint:
+
+        seen_schema_fingerprints.add(schema_fingerprint)
+        schema_fingerprint = new_schema_fingerprint
+        
+        if managed_upgrade:
+            if schema_fingerprint==best_upgrade[1]:
+                print '\tfingerprint verification successful'
+            else:
+                print '\tfingerprint verification failed'
+                break
+        
+        print
+        
+        if schema_fingerprint in seen_schema_fingerprints:
             break
         
     
