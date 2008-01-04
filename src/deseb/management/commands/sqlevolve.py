@@ -1,9 +1,14 @@
 from django.core.management.base import AppCommand
+from optparse import make_option
 
 class Command(AppCommand):
     help = """Prints the ALTER TABLE SQL statements for the given app name(s), in order to 
 non-destructively bring them into compliance with your models.
 See: http://code.google.com/p/deseb/wiki/Usage"""
+    option_list = AppCommand.option_list + (
+        make_option('--dont-notify', action='store_false', dest='do_notify', default=True,
+            help='Don\'t save evolution to schema_evolution.py near to models.py.'),
+    )
 
     output_transaction = True
 
@@ -29,4 +34,6 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
 
     def handle_app(self, app, **options):
         import deseb.schema_evolution
-        return '\n'.join(deseb.schema_evolution.get_sql_evolution(app, self.style))
+        output = deseb.schema_evolution.get_sql_evolution(app, self.style, 
+            options.get('do_notify', True))
+        return '\n'.join(output)

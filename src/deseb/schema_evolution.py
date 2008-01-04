@@ -1,4 +1,3 @@
-import django
 from django.core.exceptions import ImproperlyConfigured
 from optparse import OptionParser
 from django.utils import termcolors
@@ -7,7 +6,7 @@ import os, re, shutil, sys, textwrap, datetime
 try:
     import django.core.management.sql as management
     from django.core.management import color
-except:
+except ImportError:
     # v0.96 compatibility
     import django.core.management as management
     management.installed_models = management._get_installed_models
@@ -24,13 +23,17 @@ except:
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
-class dummy: pass
+class NotNullColumnNeedsDefaultException(Exception):
+    pass
+
+DEBUG = False
 
 def get_operations_and_introspection_classes(style):
     from django.db import backend, connection
 
     try: # v0.96 compatibility
         v0_96_quote_name = backend.quote_name
+        class dummy: pass
         setattr(connection, 'ops', dummy())
         setattr(connection.ops, 'quote_name', v0_96_quote_name)
     except:
@@ -149,6 +152,14 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
                 output.extend( ops.get_change_column_name_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_type_def, f ) )
     return output
     
+def get_field_default(f):
+    from django.db.models.fields import IntegerField, CharField
+    from django.db.models.fields import NOT_PROVIDED
+    if callable(f.default): return NOT_PROVIDED
+    #if isinstance(f, IntegerField) and f.default==0: return NOT_PROVIDED
+    #if not f.null and 
+    return f.default
+
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
 
     ops, introspection = get_operations_and_introspection_classes(style)
@@ -169,23 +180,42 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
         cf = None # current field, ie what it is before any renames
         if f.column in existing_fields:
             cf = f.column
+            f_col_type = f.db_type()
         elif f.aka and len(set(f.aka).intersection(set(existing_fields)))==1:
             cf = set(f.aka).intersection(set(existing_fields)).pop()
+            #hack
+            tempname = f.column
+            f.column = cf
+            f_col_type = f.db_type()
+            f.column = tempname
         else:
             continue # no idea what column you're talking about - should be handled by get_sql_evolution_check_for_new_fields())
         data_type = f.get_internal_type()
         if data_types.has_key(data_type):
+            #print cf, data_type, f_col_type
+            is_postgresql = settings.DATABASE_ENGINE in ['postgresql', 'postgresql_psycopg2']
             column_flags = introspection.get_known_column_flags(cursor, db_table, cf)
-            if column_flags['allow_null']!=f.null or \
-                    ( not f.primary_key and isinstance(f, CharField) and column_flags['maxlength']!=str(f.maxlength) ) or \
-                    ( not f.primary_key and isinstance(f, SlugField) and column_flags['maxlength']!=str(f.maxlength) ) or \
-                    ( column_flags['unique']!=f.unique and ( settings.DATABASE_ENGINE!='postgresql' or not f.primary_key ) ) or \
-                    str(column_flags['default'])!=str(f.default) or \
-                    column_flags['primary_key']!=f.primary_key:
+            f_default = get_field_default(f)
+            f_maxlength = str(getattr(f, 'maxlength', ''))
+            db_maxlength = str(column_flags.get('maxlength', 64000))
+            update_length = ( not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
+               ( not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
+            update_type = column_flags['coltype'].split('(')[0] != f_col_type.split('(')[0]
+            update_unique = ( column_flags['unique']!=f.unique and not (is_postgresql and f.primary_key) )
+            update_null = column_flags['allow_null']!=f.null
+            update_primary = column_flags['primary_key']!=f.primary_key
+            #if DEBUG and update_length: 
+            #    print f_col_type, column_flags['coltype'], column_flags['maxlength']
+            if update_null or update_length or update_unique or update_primary:
                 #print "cf, f.default, column_flags['default']", cf, f.default, column_flags['default'], f.default.__class__
-                col_type = f.db_type()
-                col_type_def = style.SQL_COLTYPE(col_type)
-                output.extend( ops.get_change_column_def_sql( klass._meta.db_table, cf, col_type_def, f, column_flags ) )
+                updates = {
+                    'update_type': update_type,
+                    'update_length': update_length,
+                    'update_unique': update_unique,
+                    'update_null': update_null,
+                    'update_primary': update_primary,
+                }
+                output.extend( ops.get_change_column_def_sql( klass._meta.db_table, cf, f_col_type, f, column_flags, f_default, updates ) )
     return output
 
 def get_sql_evolution_check_for_dead_fields(klass, old_table_name, style):
@@ -195,7 +225,6 @@ def get_sql_evolution_check_for_dead_fields(klass, old_table_name, style):
     
     ops, introspection = get_operations_and_introspection_classes(style)
 
-    data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)
     opts = klass._meta
@@ -248,28 +277,28 @@ def get_sql_evolution_v0_96(app):
 def run_sql_evolution_v0_96(app):
     return evolvedb(app, True)
 
-def get_sql_evolution(app, style):
+def get_sql_evolution(app, style, notify=True):
     "Returns SQL to update an existing schema to match the existing models."
-    return get_sql_evolution_detailed(app, style)[2]
+    return get_sql_evolution_detailed(app, style, notify)[2]
 
-def get_sql_evolution_detailed(app, style):
+def get_sql_evolution_detailed(app, style, notify):
     "Returns SQL to update an existing schema to match the existing models."
 
     ops, introspection = get_operations_and_introspection_classes(style)
-    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    from django.db import connection
     cursor = connection.cursor()
     app_name = app.__name__.split('.')[-2]
 
     final_output = []
 
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-    schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
+    schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style, notify)
     if schema_recognized:
-            sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
+            if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
             final_output.extend( best_upgrade[2] )
             return schema_fingerprint, False, final_output
     else:
-        sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
+        if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
 
     final_output.extend( get_introspected_evolution_options(app, style) )
         
@@ -358,7 +387,7 @@ def _get_many_to_many_sql_for_field(model, f, style):
     try:
         from django.contrib.contenttypes import generic
     except: # v0.96 compatibility
-        from django.db.models.fields import generic
+        from django.db.models.fields import generic #@UnresolvedImport
         
     ops, introspection = get_operations_and_introspection_classes(style)
 
@@ -419,7 +448,7 @@ def _get_many_to_many_sql_for_field(model, f, style):
 
     return final_output
 
-def get_fingerprints_evolutions_from_app(app, style):
+def get_fingerprints_evolutions_from_app(app, style, notify):
     from django.conf import settings
     try:
         app_name = app.__name__.split('.')[-2]
@@ -430,7 +459,7 @@ def get_fingerprints_evolutions_from_app(app, style):
         end_fingerprints = []
         for x in evolutions_list:
             if evolutions.has_key(x[0]):
-                sys.stderr.write(style.NOTICE("Warning: Fingerprint mapping %s is defined twice in %s.schema_evolution\n" % (str(x[0]),app_name)))
+                if notify: sys.stderr.write(style.NOTICE("Warning: Fingerprint mapping %s is defined twice in %s.schema_evolution\n" % (str(x[0]),app_name)))
             else:
                 evolutions[x[0]] = x[1:]
                 if x[0][0] not in fingerprints:
@@ -445,9 +474,9 @@ def get_fingerprints_evolutions_from_app(app, style):
 def get_sql_fingerprint_v0_96(app):
     return get_sql_fingerprint(app, management.style)
 
-def get_sql_fingerprint(app, style):
+def get_sql_fingerprint(app, style, notify=True):
     "Returns the fingerprint of the current schema, used in schema evolution."
-    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    from django.db import connection
     # This should work even if a connecton isn't available
     try:
         cursor = connection.cursor()
@@ -459,25 +488,25 @@ def get_sql_fingerprint(app, style):
     app_name = app.__name__.split('.')[-2]
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
     try:
-        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app)
+        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, notify)
         # is this a schema we recognize?
         schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
-            sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
+            if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
         else:
-            sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
+            if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
     except:
-        sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
+        if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
     return
 
 def get_sql_all(app, style):
     return management.sql_all(app, style)
 
-def get_managed_evolution_options(app, schema_fingerprint, style):
+def get_managed_evolution_options(app, schema_fingerprint, style, notify):
     # return schema_recognized, available_upgrades, best_upgrade
 #    try:
         # is this a schema we recognize?
-        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style)
+        fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, notify)
         schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
             available_upgrades = []
@@ -503,7 +532,7 @@ def get_managed_evolution_options(app, schema_fingerprint, style):
 
 def get_introspected_evolution_options(app, style):
     ops, introspection = get_operations_and_introspection_classes(style)
-    from django.db import get_creation_module, models, backend, get_introspection_module, connection
+    from django.db import models, get_introspection_module, connection
     cursor = connection.cursor()
     app_name = app.__name__.split('.')[-2]
 
@@ -600,9 +629,7 @@ def save_managed_evolution( app, commands, schema_fingerprint, new_schema_finger
     file = open(se_file, 'w')
     file.writelines(contents)
     
-
-
-def evolvedb(app, interactive):
+def evolvedb(app, interactive, do_save, do_notify):
     from django.db import connection
     cursor = connection.cursor()
 
@@ -613,9 +640,10 @@ def evolvedb(app, interactive):
     last_schema_fingerprint = None
     seen_schema_fingerprints = set()
     
-    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style)
+    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, do_notify)
     if fingerprints and evolutions:
-        print '%s.schema_evolution module found (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
+        if do_notify:
+            print 'Notice: %s.schema_evolution module found (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
 
     while True:
         
@@ -623,70 +651,73 @@ def evolvedb(app, interactive):
         commands_color = []
     
         schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
-        schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style)
+        schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style, do_notify)
         if fingerprints and evolutions:
             if schema_recognized:
-                print "fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
+                if do_notify or interactive: print "Notice: fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
             else:
-                print "fingerprint for '%s' is '%s' (unrecognized)" % (app_name, schema_fingerprint)
+                if do_notify or interactive: print "Notice: fingerprint for '%s' is '%s' (unrecognized)" % (app_name, schema_fingerprint)
         managed_upgrade = schema_recognized and available_upgrades and best_upgrade and best_upgrade[3]>0
         if managed_upgrade:
-            print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1], best_upgrade[3]
+            if do_notify or interactive: 
+                print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1], best_upgrade[3]
             commands_color = commands = best_upgrade[2]
         else:
             commands = get_introspected_evolution_options(app, style)
             commands_color = get_introspected_evolution_options(app, color.color_style())
-            if commands:
-                print '%s: the following schema upgrade is available:' % app_name
-#            else:
-#                print '%s: schema is up to date' % app_name
+            if interactive:
+                if commands:
+                    print '%s: the following schema upgrade is available:' % app_name
+    #            else:
+    #                print '%s: schema is up to date' % app_name
             
-        if commands:
-            for cmd in commands_color:
-                print cmd
-        else:
-            break
+        if interactive or DEBUG:
+            if commands:
+                for cmd in commands_color:
+                    print cmd
+            else:
+                break
     
         if interactive:
             confirm = raw_input("do you want to run the preceeding commands?\ntype 'yes' to continue, or 'no' to cancel: ")
         else:
             confirm = 'yes'
+        
         if confirm == 'yes':
             connection._commit() # clean previous commands run state
             for cmd in commands:
-                cursor.execute(cmd)
+                if cmd[:3] != '-- ':
+                    cursor.execute(cmd)
             connection._commit() # commit changes
-            print 'schema upgrade executed'
+            if interactive: print 'schema upgrade executed'
             new_schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
             
             if commands and not managed_upgrade and (schema_fingerprint,new_schema_fingerprint) not in all_upgrade_paths:
-                if interactive:
+                if interactive and do_save:
                     confirm = raw_input("do you want to save these commands in %s.schema_evolution?\ntype 'yes' to continue, or 'no' to cancel: " % app_name)
-                else:
-                    confirm = 'yes'
-                if confirm == 'yes':
-                    save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint )
-            
+        else:
+            confirm = 'yes'
+        if confirm == 'yes':
+            if do_save:
+                save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint )
             
             if not managed_upgrade: break
         else:
-            print 'schema upgrade aborted'
+            if interactive: print 'schema upgrade aborted'
             break
-
+                
         seen_schema_fingerprints.add(schema_fingerprint)
         schema_fingerprint = new_schema_fingerprint
-        
+            
         if managed_upgrade:
             if schema_fingerprint==best_upgrade[1]:
-                print '\tfingerprint verification successful'
+                if do_notify: print '\tfingerprint verification successful'
             else:
-                print '\tfingerprint verification failed'
-                break
-        
-        print
-        
-        if schema_fingerprint in seen_schema_fingerprints:
+                if do_notify: print '\tfingerprint verification failed'
             break
         
+        print
     
+        if schema_fingerprint in seen_schema_fingerprints:
+            break
     

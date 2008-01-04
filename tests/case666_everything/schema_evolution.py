@@ -11,7 +11,7 @@ mysql_fingerprints = [
 
 # all of your evolution scripts, mapping the from_version and to_version 
 # to a list if sql commands
-mmysql_evolutions = {
+mysql_evolutions = {
     # ('from_fingerprint','to_fingerprint'): ['-- some sql'],
     ('fv1:1742830097','fv1:907953071'): [
         '-- some list of sql statements, constituting an upgrade',

@@ -1,7 +1,7 @@
+from deseb.schema_evolution import NotNullColumnNeedsDefaultException
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
-
 
 class DatabaseOperations:
     def quote_value(self, s):
@@ -22,131 +22,129 @@ class DatabaseOperations:
     def get_change_table_name_sql( self, table_name, old_table_name ):
         output = []
         qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
         output.append(
-            self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(old_table_name)) + \
-            self.style.SQL_KEYWORD(' RENAME TO ') + \
-            self.style.SQL_TABLE(qn(table_name)) + ';')
+            kw('ALTER TABLE ') + tbl(old_table_name) +
+            kw(' RENAME TO ') + tbl(table_name) + ';')
         return output
     
     def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
         # TODO: only supports a single primary key so far
         pk_name = None
         qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
         output = []
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' RENAME COLUMN ') + \
-            self.style.SQL_FIELD(qn(old_col_name)) + \
-            self.style.SQL_KEYWORD(' TO ') + \
-            self.style.SQL_FIELD(qn(new_col_name)) + ';' )
+        output.append( 
+            kw('ALTER TABLE ') + tbl(table_name)
+            + kw(' RENAME COLUMN ') + fqn(old_col_name)
+            + kw(' TO ') + fqn(new_col_name) + ';')
         return output
-    
-    def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):
+
+    def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags, f_default, updates ):
+        #import pprint; pprint.pprint(col_name); pprint.pprint(column_flags)
         from django.db.models.fields import NOT_PROVIDED
         output = []
         qn = self.connection.ops.quote_name
-        output.append( 
-            self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' ADD COLUMN ') + \
-            self.style.SQL_FIELD(qn(col_name+'_tmp')) + \
-            ' ' + self.style.SQL_KEYWORD(col_type) + ';' )
-        output.append( 
-            self.style.SQL_KEYWORD('UPDATE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' SET ') + \
-            self.style.SQL_FIELD(qn(col_name+'_tmp')) + ' = ' + \
-            self.style.SQL_FIELD(qn(col_name)) + ';' )
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' DROP COLUMN ') + \
-            self.style.SQL_FIELD(qn(col_name)) + ';' )
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' RENAME COLUMN ') + \
-            self.style.SQL_FIELD(qn(col_name+'_tmp')) + \
-            self.style.SQL_KEYWORD(' TO ') + \
-            self.style.SQL_FIELD(qn(col_name)) + ';' )
-        if f.default!=column_flags['default']:
-            if f.default!=NOT_PROVIDED:
-                output.append( 
-                    self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                    self.style.SQL_TABLE(qn(table_name)) + \
-                    self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
-                    self.style.SQL_FIELD(qn(col_name)) + \
-                    self.style.SQL_KEYWORD(' SET DEFAULT ') + \
-                    self.style.SQL_FIELD(self.quote_value(f.default)) + ';' )
-            else:
-                output.append( 
-                    self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                    self.style.SQL_TABLE(qn(table_name)) + \
-                    self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
-                    self.style.SQL_FIELD(qn(col_name)) + \
-                    self.style.SQL_KEYWORD(' DROP DEFAULT;') )
-        if not f.null:
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
+        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
+        if updates['update_type']:
             output.append( 
-                self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                self.style.SQL_TABLE(qn(table_name)) + \
-                self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
-                self.style.SQL_FIELD(qn(col_name)) + \
-                self.style.SQL_KEYWORD(' SET NOT NULL;') )
-        if f.unique:
-            output.append( self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                self.style.SQL_TABLE(qn(table_name)) + \
-                self.style.SQL_KEYWORD(' ADD CONSTRAINT ') + \
-                table_name + '_' + col_name + '_unique_constraint'+ \
-                self.style.SQL_KEYWORD(' UNIQUE(') + \
-                self.style.SQL_FIELD(col_name) + \
-                self.style.SQL_KEYWORD(')')+';' )
-        
+                kw('ALTER TABLE ') + tbl(table_name) +
+                kw(' ADD COLUMN ') + fqn(col_name+'_tmp') + ' ' + kw(col_type) + ';' )
+            output.append( 
+                kw('UPDATE ') + tbl(table_name) + 
+                kw(' SET ') + fqn(col_name+'_tmp') + 
+                ' = ' + fqn(col_name) + ';' )
+            output.append(
+                kw('ALTER TABLE ') + tbl(table_name) + 
+                kw(' DROP COLUMN ') + fqn(col_name) + ';' )
+            output.append(
+                kw('ALTER TABLE ') + tbl(table_name) + 
+                kw(' RENAME COLUMN ') + fqn(col_name+'_tmp') + 
+                kw(' TO ') + fqn(col_name) + ';' )
+        elif updates['update_length']:
+            output.append( 
+                kw('ALTER TABLE ') + tbl(table_name) + 
+                kw(' ALTER COLUMN ') + fqn(col_name) + 
+                kw(' TYPE ')+ kw(col_type) + ';' )
+
+        #if column_flags['primary_key'] or col_type=='serial': return output
+        if updates['update_null'] or updates['update_type']:
+            if str(f_default)==str(NOT_PROVIDED) and not f.null: 
+                details = 'column "%s" of table "%s"' % (col_name, table_name)
+                raise NotNullColumnNeedsDefaultException("when altering " + details)
+            if str(f_default)!=str(NOT_PROVIDED) and not f.null: 
+                output.append( 
+                    kw('UPDATE ') + tbl(table_name) +
+                    kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) + 
+                    kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
+            if not f.null:
+                output.append( 
+                    kw('ALTER TABLE ') + tbl(table_name) +
+                    kw(' ALTER COLUMN ') + fqn(col_name) +
+                    kw(' SET NOT NULL;') )
+            elif not updates['update_type']:
+                output.append( 
+                    kw('ALTER TABLE ') + tbl(table_name) +
+                    kw(' ALTER COLUMN ') + fqn(col_name) +
+                    kw(' DROP NOT NULL;') )
+
+        #if updates['update_unique']
+        if updates['update_unique'] and f.unique:
+            output.append( kw('ALTER TABLE ') + tbl(table_name) +
+                kw(' ADD CONSTRAINT ') +
+                table_name + '_' + col_name + '_unique_constraint'+
+                kw(' UNIQUE(') + fqn(col_name) + kw(')')+';' )
         return output
     
-    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
+    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, f_default):
+        from django.db.models.fields import NOT_PROVIDED
         output = []
         qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
+        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         output.append( 
-            self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' ADD COLUMN ') + \
-            self.style.SQL_FIELD(qn(col_name)) + ' ' + \
-            self.style.SQL_KEYWORD(col_type) + ';' )
-        if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
+            kw('ALTER TABLE ') + tbl(table_name) +
+            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + kw(col_type) + ';' )
+        if primary_key: return output
+        if str(f_default)==str(NOT_PROVIDED) and not null: 
+            details = 'column "%s" into table "%s"' % (col_name, table_name)
+            raise NotNullColumnNeedsDefaultException("when adding " + details)
+        if str(f_default)!=str(NOT_PROVIDED) and not null: 
             output.append( 
-                self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                self.style.SQL_TABLE(qn(table_name)) + \
-                self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
-                self.style.SQL_FIELD(qn(col_name)) + \
-                self.style.SQL_KEYWORD(' SET DEFAULT ') + \
-                self.style.SQL_FIELD(self.quote_value(default)) + ';' )
+                kw('UPDATE ') + tbl(table_name) +
+                kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) +
+                kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
         if not null:
             output.append( 
-                self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                self.style.SQL_TABLE(qn(table_name)) + \
-                self.style.SQL_KEYWORD(' ALTER COLUMN ') + \
-                self.style.SQL_FIELD(qn(col_name)) + \
-                self.style.SQL_KEYWORD(' SET NOT NULL;') )
+                kw('ALTER TABLE ') + tbl(table_name) +
+                kw(' ALTER COLUMN ') + fqn(col_name) +
+                kw(' SET NOT NULL;') )
         if unique:
             output.append( 
-                self.style.SQL_KEYWORD('ALTER TABLE ') + \
-                self.style.SQL_TABLE(qn(table_name)) + \
-                self.style.SQL_KEYWORD(' ADD CONSTRAINT ') + \
-                table_name + '_' + col_name + '_unique_constraint'+ \
-                self.style.SQL_KEYWORD(' UNIQUE(') + \
-                self.style.SQL_FIELD(col_name) + \
-                self.style.SQL_KEYWORD(')')+';' )
+                kw('ALTER TABLE ') + tbl(table_name) + kw(' ADD CONSTRAINT ') +
+                table_name + '_' + col_name + '_unique_constraint'+
+                kw(' UNIQUE(') + fqn(col_name) + kw(')')+';' )
         return output
     
     def get_drop_column_sql( self, table_name, col_name ):
         qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
         output = []
         output.append( 
-            self.style.SQL_KEYWORD('ALTER TABLE ') + \
-            self.style.SQL_TABLE(qn(table_name)) + \
-            self.style.SQL_KEYWORD(' DROP COLUMN ') + \
-            self.style.SQL_FIELD(qn(col_name)) + ';' )
+            kw('ALTER TABLE ') + tbl(table_name) +
+            kw(' DROP COLUMN ') + fqn(col_name) + ';' )
         return output
     
     def get_drop_table_sql( self, delete_tables):
@@ -175,8 +173,8 @@ class DatabaseIntrospection:
             return []
         
     def get_known_column_flags( self, cursor, table_name, column_name ):
-        import django.db.models.fields
     #    print "SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name
+        from django.db.models.fields import NOT_PROVIDED
         cursor.execute("SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name)
         dict = {}
         dict['primary_key'] = False
@@ -190,7 +188,13 @@ class DatabaseIntrospection:
                 # maxlength check goes here
                 if row[1][0:17]=='character varying':
                     dict['maxlength'] = row[1][18:len(row[1])-1]
-                
+                    dict['coltype'] = 'varchar'
+                elif row[1][0:4]=='text':
+                    dict['maxlength'] = 64000
+                    dict['coltype'] = 'text'
+                else:
+                    dict['maxlength'] = ''
+                    dict['coltype'] = row[1]
                 # null flag check goes here
                 dict['allow_null'] = not row[3]
     
@@ -210,12 +214,12 @@ class DatabaseIntrospection:
         if unique_conname and unique_conname not in shared_unique_connames:
             dict['unique'] = True
             
-        # default value check goes here
-        cursor.execute("SELECT character_maximum_length, is_nullable, column_default FROM information_schema.columns WHERE table_name = %s AND column_name = %s" , [table_name,column_name])
-        print 'cursor.fetchall()', cursor.fetchall()
+                # default value check goes here
+        #cursor.execute("SELECT character_maximum_length, is_nullable, column_default FROM information_schema.columns WHERE table_name = %s AND column_name = %s" , [table_name,column_name])
+        #print 'cursor.fetchall()', cursor.fetchall()
         cursor.execute("select pg_attribute.attname, adsrc from pg_attrdef, pg_attribute WHERE pg_attrdef.adrelid=pg_attribute.attrelid and pg_attribute.attnum=pg_attrdef.adnum and pg_attrdef.adrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$')" % table_name )
         for row in cursor.fetchall():
-            print column_name, row
+            #print column_name, row
             if row[0] == column_name:
                 if row[1][0:7] == 'nextval': continue
                 if row[1][0] == "'":
@@ -223,7 +227,7 @@ class DatabaseIntrospection:
                 else:
                     dict['default'] = row[1]
         if not dict.has_key('default'):
-            dict['default'] = django.db.models.fields.NOT_PROVIDED
+            dict['default'] = NOT_PROVIDED
         if dict['default'] == 'false': dict['default'] = False
         if dict['default'] == 'true': dict['default'] = True
         return dict

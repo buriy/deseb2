@@ -9,7 +9,7 @@ class Poll(models.Model):
         return self.question
     
     # new fields
-    pub_date2 = models.DateTimeField('date published')
+    pub_date2 = models.DateTimeField('date published', null=True)
 
 class Choice(models.Model):
     poll = models.ForeignKey(Poll)
@@ -19,11 +19,11 @@ class Choice(models.Model):
         return self.choice
     
     # new fields
-    votes2 = models.IntegerField()
-    hasSomething = models.BooleanField()
-    creatorIp = models.IPAddressField()
+    votes2 = models.IntegerField(default=0)
+    hasSomething = models.BooleanField(default=False)
+    creatorIp = models.IPAddressField(null=True)
     votes3 = models.IntegerField(default=5)
-    content = models.TextField()
+    content = models.TextField(default="")
 
 #print Poll.__class__()
 #print Choice.__class__()

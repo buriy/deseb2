@@ -5,6 +5,10 @@ class Command(AppCommand):
     option_list = AppCommand.option_list + (
         make_option('--noinput', action='store_false', dest='interactive', default=True,
             help='Tells Django to NOT prompt the user for input of any kind.'),
+        make_option('--dont-save', action='store_false', dest='do_save', default=True,
+            help='Don\'t save evolution to schema_evolution.py near to models.py.'),
+        make_option('--dont-notify', action='store_false', dest='do_notify', default=True,
+            help='Don\'t save evolution to schema_evolution.py near to models.py.'),
     )
     help = """Prints the ALTER TABLE SQL statements for the given app name(s), in order to 
 non-destructively bring them into compliance with your models.
@@ -34,4 +38,7 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
 
     def handle_app(self, app, **options):
         import deseb.schema_evolution
-        deseb.schema_evolution.evolvedb(app, options.get('interactive', True))
+        deseb.schema_evolution.evolvedb(app, 
+            options.get('interactive', True), 
+            options.get('do_save', True),
+            options.get('do_notify', True))

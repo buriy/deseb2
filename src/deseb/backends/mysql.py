@@ -1,14 +1,13 @@
-
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
-
+from deseb.schema_evolution import NotNullColumnNeedsDefaultException
 
 class DatabaseOperations:
     
     def quote_value(self, s):
         if type(s) is bool:
-            if s: return "'t'"
-            else: return "'f'"
+            if s: return "'0'"
+            else: return "'1'"
         if type(s) is int:
             return str(s)
         else:
@@ -21,58 +20,120 @@ class DatabaseOperations:
     pk_requires_unique = False
 
     def get_change_table_name_sql( self, table_name, old_table_name ):
-        return [self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(old_table_name)) +self.style.SQL_KEYWORD(' RENAME TO ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) + ';']
+        output = []
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        output.append(
+            kw('ALTER TABLE ')+ tbl(old_table_name) +
+            kw(' RENAME TO ')+ tbl(table_name) + ';')
+        return output
     
     def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
         pk_name = None
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        fld = self.style.SQL_FIELD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
         output = []
-        col_def = col_type +' '+ self.style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name))
-                       +self.style.SQL_KEYWORD(' CHANGE COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(old_col_name)) 
-                       +' '+ self.style.SQL_FIELD(self.connection.ops.quote_name(new_col_name)) +' '
-                       + self.style.SQL_KEYWORD(col_def) + ';' )
+        col_def = fld(col_type)
+        if not f.primary_key:
+            col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
+        output.append( 
+            kw('ALTER TABLE ')+ tbl(table_name) +
+            kw(' CHANGE COLUMN ')+ fqn(old_col_name) + ' ' +
+            fqn(new_col_name) + ' ' + kw(col_def) + ';' )
         return output
     
-    def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags ):
+    def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags, f_default, updates ):
+        from django.db.models.fields import NOT_PROVIDED
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        fld = self.style.SQL_FIELD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
+        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
+        output = []
+
+        if updates['update_null'] or updates['update_type']:
+            if str(f_default)==str(NOT_PROVIDED) and not f.null: 
+                details = 'column "%s" of table "%s"' % (col_name, table_name)
+                raise NotNullColumnNeedsDefaultException("when altering " + details)
+            if str(f_default)!=str(NOT_PROVIDED) and not f.null: 
+                output.append( 
+                    kw('UPDATE ') + tbl(table_name) +
+                    kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) + 
+                    kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
+
+        col_def = fld(col_type)
+        if not f.primary_key:
+            col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
+        #if f.unique:
+        #    col_def += ' ' + kw('UNIQUE')
+        #if f.primary_key:
+        #    col_def += ' ' + kw('PRIMARY KEY')
+        output.append(
+            kw('ALTER TABLE ')+ tbl(table_name) +
+            kw(' MODIFY COLUMN ')+ fqn(col_name) + ' '+ col_def + ';' )
+        
+        return output
+    
+    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, f_default ):
         from django.db.models.fields import NOT_PROVIDED
         output = []
-        col_def = col_type +' '+ self.style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
-        if f.unique:
-            col_def += ' '+ self.style.SQL_KEYWORD('UNIQUE')
-        if f.primary_key:
-            col_def += ' '+ self.style.SQL_KEYWORD('PRIMARY KEY')
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' MODIFY COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) +' '+ col_def + ';' )
-        if f.default!=column_flags['default']:
-            if f.default!=NOT_PROVIDED:
-                output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' SET DEFAULT ')+ self.quote_value(f.default) + ';' )
-            else:
-                output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' ALTER COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + self.style.SQL_KEYWORD(' DROP DEFAULT') +';' )
-        return output
-    
-    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
-        output = []
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        fld = self.style.SQL_FIELD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
+        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         field_output = []
-        field_output.append(self.style.SQL_KEYWORD('ALTER TABLE'))
-        field_output.append(self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)))
-        field_output.append(self.style.SQL_KEYWORD('ADD COLUMN'))
-        field_output.append(self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)))
-        field_output.append(col_type)
-        field_output.append(self.style.SQL_KEYWORD(('%sNULL' % (not null and 'NOT ' or ''))))
+        field_output.append(
+            kw('ALTER TABLE ') + tbl(table_name) +
+            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fld(col_type))
         if unique:
-            field_output.append(self.style.SQL_KEYWORD('UNIQUE'))
+            field_output.append(kw('UNIQUE'))
         if primary_key:
-            field_output.append(self.style.SQL_KEYWORD('PRIMARY KEY'))
-        if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
-            field_output.append(self.style.SQL_KEYWORD('DEFAULT'))
-            field_output.append((self.quote_value(default)))
+            field_output.append(kw('PRIMARY KEY'))
         output.append(' '.join(field_output) + ';')
+        if primary_key: return output
+        if str(f_default)==str(NOT_PROVIDED) and not null: 
+            details = 'column "%s" into table "%s"' % (col_name, table_name)
+            raise NotNullColumnNeedsDefaultException("when adding " + details)
+        if str(f_default)!=str(NOT_PROVIDED) and not null: 
+            output.append( 
+                kw('UPDATE ') + tbl(table_name) +
+                kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) +
+                kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
+        if not null:
+            col_def = fld(col_type) + kw(not null and ' NOT NULL' or '')
+            #if unique:
+            #    col_def += ' '+ kw('UNIQUE')
+            #if primary_key:
+            #    col_def += ' '+ kw('PRIMARY KEY')
+            output.append( 
+                kw('ALTER TABLE ') + tbl(table_name) +
+                kw(' MODIFY COLUMN ') + fqn(col_name) + ' '+
+                kw(col_def+';') )
+        if unique:
+            output.append( 
+                kw('ALTER TABLE ') + tbl(table_name) + kw(' ADD CONSTRAINT ') +
+                table_name + '_' + col_name + '_unique_constraint'+
+                kw(' UNIQUE(') + fqn(col_name) + kw(')')+';' )
         return output
     
     def get_drop_column_sql( self, table_name, col_name ):
         output = []
-        output.append( self.style.SQL_KEYWORD('ALTER TABLE ')+ self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)) +self.style.SQL_KEYWORD(' DROP COLUMN ')+ self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)) + ';' )
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
+        output.append( 
+             kw('ALTER TABLE ')+ tbl(table_name) 
+            +kw(' DROP COLUMN ')+ fqn(col_name) + ';' )
         return output
     
     def get_drop_table_sql( self, delete_tables):
@@ -96,7 +157,7 @@ class DatabaseIntrospection:
     def get_schema_fingerprint_fv1( self, cursor, app):
         from django.db import models
         app_name = app.__name__.split('.')[-2]
-    
+        qn = self.connection.ops.quote_name
         schema = ['app_name := '+ app_name]
     
         cursor.execute('SHOW TABLES;')
@@ -104,13 +165,13 @@ class DatabaseIntrospection:
             if not table_name.startswith(app_name):
                 continue    # skip tables not in this app
             schema.append('table_name := '+ table_name)
-            cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
+            cursor.execute("describe %s" % qn(table_name))
             for row in cursor.fetchall():
                 tmp = []
                 for x in row:
                     tmp.append(str(x))
                 schema.append( '\t'.join(tmp) )
-            cursor.execute("SHOW INDEX FROM %s" % self.connection.ops.quote_name(table_name))
+            cursor.execute("SHOW INDEX FROM %s" % qn(table_name))
             for row in cursor.fetchall():
                 schema.append( '\t'.join([ str(row[0]), str(row[1]), str(row[2]), str(row[3]), str(row[4]), str(row[5]), str(row[9]), ]) )
             
@@ -133,8 +194,11 @@ class DatabaseIntrospection:
                 # maxlength check goes here
                 if row[1][0:7]=='varchar':
                     dict['maxlength'] = row[1][8:len(row[1])-1]
+                    dict['coltype'] = 'varchar'
+                else:
+                    dict['coltype'] = row[1]
                 
-                # default flag check goes here
+                # f_default flag check goes here
                 if row[2]=='YES': dict['allow_null'] = True
                 else: dict['allow_null'] = False
                 
@@ -146,9 +210,9 @@ class DatabaseIntrospection:
                 if row[3]=='UNI': dict['unique'] = True
                 else: dict['unique'] = False
                 
-                # default value check goes here
-                # if row[4]=='NULL': dict['default'] = None
-                # else: dict['default'] = row[4]
+                # f_default value check goes here
+                # if row[4]=='NULL': dict['f_default'] = None
+                # else: dict['f_default'] = row[4]
                 dict['default'] = row[4]
                 if not dict['default']:
                     dict['default'] = django.db.models.fields.NOT_PROVIDED

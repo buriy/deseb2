@@ -40,6 +40,9 @@ def add_aka_support():
                 if self.aka.__class__.__name__=='str':
                     self.aka = (self.aka,)
                 del kwargs['aka']
+            if kwargs.has_key('maxlength'):
+                kwargs['max_length'] = kwargs['maxlength']
+                del kwargs['maxlength']
             func(self, *args, **kwargs)
         return inner
     
