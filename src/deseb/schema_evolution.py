@@ -23,8 +23,8 @@ except ImportError:
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
-class NotNullColumnNeedsDefaultException(Exception):
-    pass
+class NotNullColumnNeedsDefaultException(Exception): pass
+class MultipleRenamesPossibleException(Exception): pass
 
 DEBUG = False
 
@@ -75,7 +75,7 @@ def get_sql_indexes_for_field(model, f, style):
     
 def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
     "checks for model fields that are not in the existing data structure"
-    from django.db import get_creation_module, models, get_introspection_module, connection
+    from django.db import get_creation_module, get_introspection_module, connection
 
     ops, introspection = get_operations_and_introspection_classes(style)
     
@@ -100,7 +100,7 @@ def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
     return output
 
 def get_sql_evolution_check_for_changed_model_name(klass, style):
-    from django.db import get_creation_module, models, get_introspection_module, connection
+    from django.db import get_introspection_module, connection
 
     ops, introspection = get_operations_and_introspection_classes(style)
 
@@ -121,11 +121,10 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
         return [], None
     
 def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style):
-    from django.db import get_creation_module, models, get_introspection_module, connection
+    from django.db import get_introspection_module, connection
     
     ops, introspection = get_operations_and_introspection_classes(style)
 
-    data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
     opts = klass._meta
     output = []
@@ -138,6 +137,9 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
             old_col = f.column
         elif f.aka and len(set(f.aka).intersection(set(existing_fields)))==1:
             old_col = set(f.aka).intersection(set(existing_fields)).pop()
+        elif f.aka and len(set(f.aka).intersection(set(existing_fields)))>1:
+            details = 'column "%s" of table "%s"' % (f.column, klass._meta.db_table)
+            raise MultipleRenamesPossibleException("when renamed " + details)
         else:
             continue
         if old_col != f.column:
@@ -153,18 +155,15 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
     return output
     
 def get_field_default(f):
-    from django.db.models.fields import IntegerField, CharField
+    #from django.db.models.fields import IntegerField, CharField
     from django.db.models.fields import NOT_PROVIDED
     if callable(f.default): return NOT_PROVIDED
-    #if isinstance(f, IntegerField) and f.default==0: return NOT_PROVIDED
-    #if not f.null and 
     return f.default
 
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
-
     ops, introspection = get_operations_and_introspection_classes(style)
     
-    from django.db import get_creation_module, models, get_introspection_module, connection
+    from django.db import get_creation_module, connection
     from django.db.models.fields import CharField, SlugField
     from django.db.models.fields.related import RelatedField, ForeignKey
     data_types = get_creation_module().DATA_TYPES
@@ -177,6 +176,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
         db_table = old_table_name
     for f in opts.fields:
         existing_fields = introspection.get_columns(cursor,db_table)
+        #existing_relations = introspection.get_relations(cursor,db_table)
         cf = None # current field, ie what it is before any renames
         if f.column in existing_fields:
             cf = f.column
@@ -196,17 +196,22 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
             is_postgresql = settings.DATABASE_ENGINE in ['postgresql', 'postgresql_psycopg2']
             column_flags = introspection.get_known_column_flags(cursor, db_table, cf)
             f_default = get_field_default(f)
-            f_maxlength = str(getattr(f, 'maxlength', ''))
-            db_maxlength = str(column_flags.get('maxlength', 64000))
+            f_maxlength = str(getattr(f, 'max_length', ''))
+            db_maxlength = str(column_flags.get('max_length', 64000))
             update_length = ( not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
                ( not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
+            if is_postgresql and f_col_type=='serial': f_col_type = 'integer'
             update_type = column_flags['coltype'].split('(')[0] != f_col_type.split('(')[0]
             update_unique = ( column_flags['unique']!=f.unique and not (is_postgresql and f.primary_key) )
             update_null = column_flags['allow_null']!=f.null
             update_primary = column_flags['primary_key']!=f.primary_key
+            update_sequences = False
+            if column_flags.has_key('sequence'):
+                correct_seq_name = klass._meta.db_table+"_"+cf+'_seq'
+                update_sequences = column_flags['sequence'] != correct_seq_name
             #if DEBUG and update_length: 
             #    print f_col_type, column_flags['coltype'], column_flags['maxlength']
-            if update_null or update_length or update_unique or update_primary:
+            if update_null or update_length or update_unique or update_primary or update_sequences:
                 #print "cf, f.default, column_flags['default']", cf, f.default, column_flags['default'], f.default.__class__
                 updates = {
                     'update_type': update_type,
@@ -214,6 +219,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
                     'update_unique': update_unique,
                     'update_null': update_null,
                     'update_primary': update_primary,
+                    'update_sequences': update_sequences,
                 }
                 output.extend( ops.get_change_column_def_sql( klass._meta.db_table, cf, f_col_type, f, column_flags, f_default, updates ) )
     return output
@@ -457,7 +463,7 @@ def get_fingerprints_evolutions_from_app(app, style, notify):
         evolutions = {}
         fingerprints = []
         end_fingerprints = []
-        for x in evolutions_list:
+        for x in evolutions_list.keys():
             if evolutions.has_key(x[0]):
                 if notify: sys.stderr.write(style.NOTICE("Warning: Fingerprint mapping %s is defined twice in %s.schema_evolution\n" % (str(x[0]),app_name)))
             else:
@@ -703,7 +709,7 @@ def evolvedb(app, interactive, do_save, do_notify):
             
             if not managed_upgrade: break
         else:
-            if interactive: print 'schema upgrade aborted'
+            if interactive: print 'schema not saved'
             break
                 
         seen_schema_fingerprints.add(schema_fingerprint)

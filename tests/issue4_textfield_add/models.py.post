@@ -1,4 +1,5 @@
 from django.db import models
+import deseb
 
 class Topic(models.Model):
     title = models.CharField(maxlength=255, unique=True)
@@ -14,4 +15,4 @@ class Topic(models.Model):
     
     create_date = models.DateField('date added', auto_now_add=True)
     updated_date = models.DateField('date updated', auto_now=True)
-    content = models.TextField()
+    content = models.TextField(null=True, blank=True)

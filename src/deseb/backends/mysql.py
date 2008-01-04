@@ -23,10 +23,10 @@ class DatabaseOperations:
         output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         output.append(
-            kw('ALTER TABLE ')+ tbl(old_table_name) +
-            kw(' RENAME TO ')+ tbl(table_name) + ';')
+            kw('ALTER TABLE ')+ tqn(old_table_name) +
+            kw(' RENAME TO ')+ tqn(table_name) + ';')
         return output
     
     def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
@@ -34,7 +34,7 @@ class DatabaseOperations:
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
@@ -43,7 +43,7 @@ class DatabaseOperations:
         if not f.primary_key:
             col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
         output.append( 
-            kw('ALTER TABLE ')+ tbl(table_name) +
+            kw('ALTER TABLE ')+ tqn(table_name) +
             kw(' CHANGE COLUMN ')+ fqn(old_col_name) + ' ' +
             fqn(new_col_name) + ' ' + kw(col_def) + ';' )
         return output
@@ -53,7 +53,7 @@ class DatabaseOperations:
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         output = []
@@ -61,10 +61,10 @@ class DatabaseOperations:
         if updates['update_null'] or updates['update_type']:
             if str(f_default)==str(NOT_PROVIDED) and not f.null: 
                 details = 'column "%s" of table "%s"' % (col_name, table_name)
-                raise NotNullColumnNeedsDefaultException("when altering " + details)
+                raise NotNullColumnNeedsDefaultException("when modified " + details)
             if str(f_default)!=str(NOT_PROVIDED) and not f.null: 
                 output.append( 
-                    kw('UPDATE ') + tbl(table_name) +
+                    kw('UPDATE ') + tqn(table_name) +
                     kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) + 
                     kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
 
@@ -76,7 +76,7 @@ class DatabaseOperations:
         #if f.primary_key:
         #    col_def += ' ' + kw('PRIMARY KEY')
         output.append(
-            kw('ALTER TABLE ')+ tbl(table_name) +
+            kw('ALTER TABLE ')+ tqn(table_name) +
             kw(' MODIFY COLUMN ')+ fqn(col_name) + ' '+ col_def + ';' )
         
         return output
@@ -87,12 +87,12 @@ class DatabaseOperations:
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         field_output = []
         field_output.append(
-            kw('ALTER TABLE ') + tbl(table_name) +
+            kw('ALTER TABLE ') + tqn(table_name) +
             kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fld(col_type))
         if unique:
             field_output.append(kw('UNIQUE'))
@@ -102,10 +102,10 @@ class DatabaseOperations:
         if primary_key: return output
         if str(f_default)==str(NOT_PROVIDED) and not null: 
             details = 'column "%s" into table "%s"' % (col_name, table_name)
-            raise NotNullColumnNeedsDefaultException("when adding " + details)
+            raise NotNullColumnNeedsDefaultException("when added " + details)
         if str(f_default)!=str(NOT_PROVIDED) and not null: 
             output.append( 
-                kw('UPDATE ') + tbl(table_name) +
+                kw('UPDATE ') + tqn(table_name) +
                 kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) +
                 kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
         if not null:
@@ -115,12 +115,12 @@ class DatabaseOperations:
             #if primary_key:
             #    col_def += ' '+ kw('PRIMARY KEY')
             output.append( 
-                kw('ALTER TABLE ') + tbl(table_name) +
+                kw('ALTER TABLE ') + tqn(table_name) +
                 kw(' MODIFY COLUMN ') + fqn(col_name) + ' '+
                 kw(col_def+';') )
         if unique:
             output.append( 
-                kw('ALTER TABLE ') + tbl(table_name) + kw(' ADD CONSTRAINT ') +
+                kw('ALTER TABLE ') + tqn(table_name) + kw(' ADD CONSTRAINT ') +
                 table_name + '_' + col_name + '_unique_constraint'+
                 kw(' UNIQUE(') + fqn(col_name) + kw(')')+';' )
         return output
@@ -129,15 +129,22 @@ class DatabaseOperations:
         output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         output.append( 
-             kw('ALTER TABLE ')+ tbl(table_name) 
+             kw('ALTER TABLE ')+ tqn(table_name) 
             +kw(' DROP COLUMN ')+ fqn(col_name) + ';' )
         return output
     
     def get_drop_table_sql( self, delete_tables):
-        return []
+        output = []
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
+        for table_name in delete_tables:
+            output.append( 
+                kw('DROP TABLE ')+ tqn(table_name) + ';' )
+        return output
 
     def get_autoinc_sql(self, table):
         return None
@@ -193,7 +200,7 @@ class DatabaseIntrospection:
     
                 # maxlength check goes here
                 if row[1][0:7]=='varchar':
-                    dict['maxlength'] = row[1][8:len(row[1])-1]
+                    dict['max_length'] = row[1][8:len(row[1])-1]
                     dict['coltype'] = 'varchar'
                 else:
                     dict['coltype'] = row[1]

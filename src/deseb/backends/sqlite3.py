@@ -24,16 +24,16 @@ class DatabaseOperations:
     def get_change_table_name_sql( self, table_name, old_table_name ):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
-        return [kw('ALTER TABLE ')+ tbl(old_table_name) +
-                kw(' RENAME TO ') + tbl(table_name) + ';']
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
+        return [kw('ALTER TABLE ')+ tqn(old_table_name) +
+                kw(' RENAME TO ') + tqn(table_name) + ';']
     
     def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_def, f ):
         # sqlite doesn't support column renames, so we fake it
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         model = self.get_model_from_table_name(table_name)
         output = []
         output.append( '-- FYI: sqlite does not support renaming columns, so we create a new '
@@ -51,9 +51,9 @@ class DatabaseOperations:
             else: 
                 old_cols.append( qn(old_col_name) )
     
-        output.append( kw('INSERT INTO ')+ tbl(table_name) +kw(' SELECT ')
-                       + fld(','.join(old_cols)) +kw(' FROM ')+ tbl(tmp_table_name) +';' )
-        output.append( kw('DROP TABLE ')+ tbl(tmp_table_name) +';' )
+        output.append( kw('INSERT INTO ')+ tqn(table_name) +kw(' SELECT ')
+                       + fld(','.join(old_cols)) +kw(' FROM ')+ tqn(tmp_table_name) +';' )
+        output.append( kw('DROP TABLE ')+ tqn(tmp_table_name) +';' )
     
         return output
     
@@ -62,7 +62,7 @@ class DatabaseOperations:
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         model = self.get_model_from_table_name(table_name)
         if not model: 
             return ['-- model not found']
@@ -79,9 +79,9 @@ class DatabaseOperations:
         for f in model._meta.fields:
             old_cols.append( qn(f.column) )
     
-        output.append( kw('INSERT INTO ')+ tbl(table_name) +kw(' SELECT ')
-                       + fld(','.join(old_cols)) +kw(' FROM ')+ tbl(tmp_table_name) +';' )
-        output.append( kw('DROP TABLE ')+ tbl(tmp_table_name) +';' )
+        output.append( kw('INSERT INTO ')+ tqn(table_name) +kw(' SELECT ')
+                       + fld(','.join(old_cols)) +kw(' FROM ')+ tqn(tmp_table_name) +';' )
+        output.append( kw('DROP TABLE ')+ tqn(tmp_table_name) +';' )
     
         return output
     
@@ -90,9 +90,9 @@ class DatabaseOperations:
         field_output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        field_output.append(kw('ALTER TABLE') + tbl(table_name))
+        field_output.append(kw('ALTER TABLE') + tqn(table_name))
         field_output.append(kw('ADD COLUMN') + fqn(col_name))
         field_output.append(col_type)
         field_output.append(kw('%sNULL' % (not null and 'NOT ' or '')))
@@ -110,7 +110,7 @@ class DatabaseOperations:
         model = self.get_model_from_table_name(table_name)
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        tbl = lambda s: self.style.SQL_TABLE(qn(s))
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         output = []
         output.append( '-- FYI: sqlite does not support deleting columns, so we create a new '
@@ -122,11 +122,11 @@ class DatabaseOperations:
         for f in model._meta.fields:
             new_cols.append( qn(f.column) )
         output.append(
-            kw('INSERT INTO ')+ tbl(table_name) +
+            kw('INSERT INTO ')+ tqn(table_name) +
             kw(' SELECT ') + fqn(','.join(new_cols)) +
-            kw(' FROM ')+ tbl(tmp_table_name) +';' )
+            kw(' FROM ')+ tqn(tmp_table_name) +';' )
         output.append( 
-            kw('DROP TABLE ')+ tbl(tmp_table_name) +';' )
+            kw('DROP TABLE ')+ tqn(tmp_table_name) +';' )
         return output
     
     def get_drop_table_sql( self, delete_tables):
@@ -183,7 +183,7 @@ class DatabaseIntrospection:
     
                 # maxlength check goes here
                 if row[2][0:7]=='varchar':
-                    dict['maxlength'] = row[2][8:len(row[2])-1]
+                    dict['max_length'] = row[2][8:len(row[2])-1]
                     dict['coltype'] = 'varchar'
                 else:
                     dict['coltype'] = col_type

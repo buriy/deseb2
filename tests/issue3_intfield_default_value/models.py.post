@@ -1,4 +1,5 @@
 from django.db import models
+import deseb
 
 class Channel(models.Model):
     url = models.URLField(verify_exists = False)

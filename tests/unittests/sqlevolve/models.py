@@ -62,6 +62,7 @@ __test__ = {'API_TESTS':"""
 >>> from django.core.management.color import color_style
 >>> from django.db import backend, models
 >>> from django.db import connection
+>>> from django.conf import settings
 >>> import deseb
 >>> import deseb.schema_evolution
 >>> app = models.get_apps()[8]
@@ -76,6 +77,14 @@ __test__ = {'API_TESTS':"""
 >>> import pprint
 >>> def print_schema_evolution(app):
 ...     return pprint.pprint(deseb.schema_evolution.get_sql_evolution(app, style, notify=False))
+>>> def print_and_execute(sql): 
+...     pprint.pprint(sql)
+...     for command in sql: 
+...         if command[:2] == '--': continue
+...         ret = cursor.execute(command)
+>>> def print_and_evolve(app):
+...     sql = deseb.schema_evolution.get_sql_evolution(app, style, notify=False)
+...     print_and_execute(sql)
 """}
 
 print settings.DATABASE_ENGINE
@@ -86,93 +95,87 @@ if settings.DATABASE_ENGINE == 'mysql':
 >>> create_table_sql = deseb.schema_evolution.get_sql_all(auth_app, color_style())
 
 # make sure we don't evolve an unedited table
->>> print_schema_evolution(auth_app)
+>>> print_and_evolve(auth_app) #m1
 []
 
 # the table as it is supposed to be
 >>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
 
 # make sure we don't evolve an unedited table
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #m2
 []
 
 # delete a column, so it looks like we've recently added a field
->>> sql = ops.get_drop_column_sql( 'sqlevolve_person', 'gender' )
->>> print sql
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'gender' ))
 ['ALTER TABLE `sqlevolve_person` DROP COLUMN `gender`;']
->>> for s in sql: cursor.execute(s)
-0L
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #m3
 ['ALTER TABLE `sqlevolve_person` ADD COLUMN `gender` varchar(1);',
  "UPDATE `sqlevolve_person` SET `gender` = '1' WHERE `gender` IS NULL;",
  'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `gender` varchar(1) NOT NULL;']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
-0L\n0L
+0\n0
 
 # add a column, so it looks like we've recently deleted a field
 >>> cursor.execute('ALTER TABLE `sqlevolve_person` ADD COLUMN `gender_nothere` varchar(1) NOT NULL;')
-0L
->>> print_schema_evolution(app)
+0
+>>> print_and_evolve(app) #m4
 ['-- warning: the following may cause data loss',
  u'ALTER TABLE `sqlevolve_person` DROP COLUMN `gender_nothere`;',
  '-- end warning']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
-0L\n0L
+0\n0
 
 # rename column, so it looks like we've recently renamed a field
 >>> cursor.execute('ALTER TABLE `sqlevolve_person` CHANGE COLUMN `gender2` `gender_old` varchar(1) NOT NULL;')
-0L
->>> print_schema_evolution(app)
+0
+>>> print_and_evolve(app) #m5
 ['ALTER TABLE `sqlevolve_person` CHANGE COLUMN `gender_old` `gender2` varchar(1) NOT NULL;']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
-0L\n0L
+0\n0
 
 # rename table, so it looks like we've recently renamed a model
 >>> cursor.execute('ALTER TABLE `sqlevolve_person` RENAME TO `sqlevolve_personold`')
-0L
->>> print_schema_evolution(app)
+0
+>>> print_and_evolve(app) #m6
 ['ALTER TABLE `sqlevolve_personold` RENAME TO `sqlevolve_person`;']
 
 # reset the db
->>> cursor.execute(create_table_sql[0])
-0L
+>>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
+0\n0
 
 # change column flags, so it looks like we've recently changed a column flag
 >>> cursor.execute('ALTER TABLE `sqlevolve_person` MODIFY COLUMN `name` varchar(10) NULL;')
-0L
->>> print_schema_evolution(app)
+0
+>>> print_and_evolve(app) #m7
 [u"UPDATE `sqlevolve_person` SET `name` = '' WHERE `name` IS NULL;",
  'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `name` varchar(20) NOT NULL;']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
-0L\n0L
+0\n0
 
 # delete a datetime column, so it looks like we've recently added a datetime field
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_muebles', 'fecha_publicacion' ): print sql; cursor.execute(sql)
-ALTER TABLE `sqlevolve_muebles` DROP COLUMN `fecha_publicacion`;
-0L
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'fecha_publicacion' ))
+['ALTER TABLE `sqlevolve_muebles` DROP COLUMN `fecha_publicacion`;']
+>>> print_and_evolve(app) #m8
 ['ALTER TABLE `sqlevolve_muebles` ADD COLUMN `fecha_publicacion` datetime;']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_muebles;'); cursor.execute(create_table_sql[1])
-0L\n0L
+0\n0
 
 # delete a column with a default value, so it looks like we've recently added a column
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ): print sql; cursor.execute(sql)
-ALTER TABLE `sqlevolve_muebles` DROP COLUMN `tipo`;
-0L
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ): print sql; cursor.execute(sql)
-ALTER TABLE `sqlevolve_person` DROP COLUMN `ssn`;
-0L
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ))
+['ALTER TABLE `sqlevolve_muebles` DROP COLUMN `tipo`;']
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ))
+['ALTER TABLE `sqlevolve_person` DROP COLUMN `ssn`;']
+>>> print_and_evolve(app) #m9
 ['ALTER TABLE `sqlevolve_person` ADD COLUMN `ssn` integer;',
  'UPDATE `sqlevolve_person` SET `ssn` = 111111111 WHERE `ssn` IS NULL;',
  'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `ssn` integer NOT NULL;',
@@ -187,22 +190,24 @@ if settings.DATABASE_ENGINE == 'postgresql' or settings.DATABASE_ENGINE == 'post
 >>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
 
 # make sure we don't evolve an unedited table
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #p1
 []
 
 # delete a column, so it looks like we've recently added a field
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_person', 'gender' ): cursor.execute(sql)
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'gender' ))
+['ALTER TABLE "sqlevolve_person" DROP COLUMN "gender";']
+>>> print_and_evolve(app) #p2
 ['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender" varchar(1);',
- 'UPDATE "sqlevolve_person" SET "gender" = 'f' WHERE "gender" IS NULL;',
+ 'UPDATE "sqlevolve_person" SET "gender" = \\'f\\' WHERE "gender" IS NULL;',
  'ALTER TABLE "sqlevolve_person" ALTER COLUMN "gender" SET NOT NULL;']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
 
 # add a column, so it looks like we've recently deleted a field
->>> for sql in ops.get_add_column_sql( 'sqlevolve_person', 'gender_nothere', 'varchar(1)', True, False, False, None ): cursor.execute(sql)
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_add_column_sql( 'sqlevolve_person', 'gender_nothere', 'varchar(1)', True, False, False, None ))
+['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender_nothere" varchar(1);']
+>>> print_and_evolve(app) #p3
 ['-- warning: the following may cause data loss',
  u'ALTER TABLE "sqlevolve_person" DROP COLUMN "gender_nothere";',
  '-- end warning']
@@ -211,26 +216,59 @@ if settings.DATABASE_ENGINE == 'postgresql' or settings.DATABASE_ENGINE == 'post
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
 
 # rename column, so it looks like we've recently renamed a field
->>> for sql in ops.get_change_column_name_sql( 'sqlevolve_person', {}, 'gender2', 'gender_old', 'varchar(1)', False ): cursor.execute(sql)
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_change_column_name_sql( 'sqlevolve_person', {}, 'gender2', 'gender_old', 'varchar(1)', False ))
+['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender2" TO "gender_old";']
+>>> print_and_evolve(app) #p4
 ['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender_old" TO "gender2";']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
 
 # rename table, so it looks like we've recently renamed a model
->>> for sql in ops.get_change_table_name_sql( 'sqlevolve_personold', 'sqlevolve_person' ): cursor.execute(sql)
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_change_table_name_sql( 'sqlevolve_personold', 'sqlevolve_person' ))
+['ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_personold";']
+>>> print_and_evolve(app) #p5
 ['ALTER TABLE "sqlevolve_personold" RENAME TO "sqlevolve_person";']
 
 # reset the db
->>> cursor.execute(create_table_sql[0])
+>>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
+
+# rename the sequence, so it looks like we renamed the sequence
+>>> cursor.execute('ALTER TABLE "sqlevolve_person" DROP COLUMN "id";')
+>>> cursor.execute('ALTER TABLE "sqlevolve_person" ADD COLUMN "strangename" serial;')
+>>> cursor.execute('ALTER TABLE "sqlevolve_person" RENAME COLUMN "strangename" TO "id";')
+>>> print_and_evolve(app) #p6.1
+[u'ALTER TABLE "sqlevolve_person_strangename_seq" RENAME TO "sqlevolve_person_id_seq";',
+ u'ALTER TABLE "sqlevolve_person" ALTER COLUMN "id" SET DEFAULT nextval(\\'sqlevolve_person_id_seq\\'::regclass);']
+
+# reset the db
+>>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
+
+# remove id and add integer id, so it looks like we removed primary key constraint
+#>>> cursor.execute('ALTER TABLE "sqlevolve_person" DROP COLUMN "id";')
+#>>> cursor.execute('ALTER TABLE "sqlevolve_person" ADD COLUMN "id" integer;')
+#>>> print_and_evolve(app) #p6.2
+
+# reset the db
+>>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
 
 # change column flags, so it looks like we've recently changed a column flag
-# >>> for sql in ops.get_change_column_def_sql( 'sqlevolve_person', 'name', 'varchar(10)', True, False, False, None ): cursor.execute(sql)
+>>> from django.db.models.fields import NOT_PROVIDED
+>>> updates = {
+...     'update_type': False,
+...     'update_length': True,
+...     'update_unique': False,
+...     'update_null': False,
+...     'update_primary': False,
+...     'update_sequences': False,
+... }
+>>> print_and_execute(ops.get_change_column_def_sql( 'sqlevolve_person', 'name', 'varchar(10)', True, False, NOT_PROVIDED, updates ))
+['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(10);']
+>>> print_and_evolve(app) #p7
+['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(20);']
 >>> cursor.execute('ALTER TABLE "sqlevolve_person" DROP COLUMN "name";')
 >>> cursor.execute('ALTER TABLE "sqlevolve_person" ADD COLUMN "name" varchar(10);')
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #p8
 ['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(20);',
  u'UPDATE "sqlevolve_person" SET "name" = \\'\\' WHERE "name" IS NULL;',
  'ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" SET NOT NULL;']
@@ -239,20 +277,20 @@ if settings.DATABASE_ENGINE == 'postgresql' or settings.DATABASE_ENGINE == 'post
 >>> cursor.execute('DROP TABLE sqlevolve_person;'); cursor.execute(create_table_sql[0])
 
 # delete a datetime column pair, so it looks like we've recently added a datetime field
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_muebles', 'fecha_publicacion' ): print sql; cursor.execute(sql)
-ALTER TABLE "sqlevolve_muebles" DROP COLUMN "fecha_publicacion";
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'fecha_publicacion' ))
+['ALTER TABLE "sqlevolve_muebles" DROP COLUMN "fecha_publicacion";']
+>>> print_and_evolve(app) #p9
 ['ALTER TABLE "sqlevolve_muebles" ADD COLUMN "fecha_publicacion" timestamp with time zone;']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_muebles;'); cursor.execute(create_table_sql[1])
 
 # delete a column with a default value, so it looks like we've recently added a column
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ): print sql; cursor.execute(sql)
-ALTER TABLE "sqlevolve_muebles" DROP COLUMN "tipo";
->>> for sql in ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ): print sql; cursor.execute(sql)
-ALTER TABLE "sqlevolve_person" DROP COLUMN "ssn";
->>> print_schema_evolution(app)
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ))
+['ALTER TABLE "sqlevolve_muebles" DROP COLUMN "tipo";']
+>>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ))
+['ALTER TABLE "sqlevolve_person" DROP COLUMN "ssn";']
+>>> print_and_evolve(app) #p10
 ['ALTER TABLE "sqlevolve_person" ADD COLUMN "ssn" integer;',
  'UPDATE "sqlevolve_person" SET "ssn" = 111111111 WHERE "ssn" IS NULL;',
  'ALTER TABLE "sqlevolve_person" ALTER COLUMN "ssn" SET NOT NULL;',
@@ -267,7 +305,7 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 >>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
 
 # make sure we don't evolve an unedited table
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #sq1
 []
 
 # delete a column, so it looks like we've recently added a field
@@ -275,7 +313,7 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 >>> cursor.execute( 'CREATE TABLE "sqlevolve_person" ( "id" integer NOT NULL UNIQUE PRIMARY KEY, "name" varchar(20) NOT NULL, "gender" varchar(1) NOT NULL );' ).__class__
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #sq2
 ['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender2" varchar(1) NOT NULL;']
 
 # reset the db
@@ -291,8 +329,7 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 >>> cursor.execute( 'insert into "sqlevolve_person" values (1,2,3,4,5);' ).__class__
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> sql = print_schema_evolution(app)
->>> print sql
+>>> print_and_evolve(app) #sq3
 ['-- warning: the following may cause data loss', u'-- FYI: sqlite does not support deleting columns, so we create a new "gender_new" and delete the old  (ie, this could take a while)', 'ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_person_1337_TMP";', 'CREATE TABLE "sqlevolve_person" (\\n    "id" integer NOT NULL UNIQUE PRIMARY KEY,\\n    "name" varchar(20) NOT NULL,\\n    "gender" varchar(1) NOT NULL,\\n    "gender2" varchar(1) NOT NULL\\n)\\n;', 'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender2" FROM "sqlevolve_person_1337_TMP";', 'DROP TABLE "sqlevolve_person_1337_TMP";', '-- end warning']
 >>> for s in sql: cursor.execute(s).__class__
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
@@ -322,7 +359,7 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 >>> cursor.execute( 'insert into "sqlevolve_person" values (1,2,3,4);' ).__class__
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> sql = print_schema_evolution(app)
+>>> sql = print_and_evolve(app) #sq4
 >>> print sql
 ['-- FYI: sqlite does not support renaming columns, so we create a new "sqlevolve_person" and delete the old  (ie, this could take a while)', 'ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_person_1337_TMP";', 'CREATE TABLE "sqlevolve_person" (\\n    "id" integer NOT NULL UNIQUE PRIMARY KEY,\\n    "name" varchar(20) NOT NULL,\\n    "gender" varchar(1) NOT NULL,\\n    "gender2" varchar(1) NOT NULL\\n)\\n;', 'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender_old" FROM "sqlevolve_person_1337_TMP";', 'DROP TABLE "sqlevolve_person_1337_TMP";']
 >>> for s in sql: cursor.execute(s).__class__
@@ -343,9 +380,9 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 
 # rename table, so it looks like we've recently renamed a model
->>> for sql in ops.get_change_table_name_sql( 'sqlevolve_personold', 'sqlevolve_person' ): cursor.execute(sql).__class__
+>>> print_and_execute(ops.get_change_table_name_sql( 'sqlevolve_personold', 'sqlevolve_person' ))
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #sq5
 ['ALTER TABLE "sqlevolve_personold" RENAME TO "sqlevolve_person";']
 
 # reset the db
@@ -359,8 +396,12 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 >>> cursor.execute('CREATE TABLE "sqlevolve_person" ( "id" integer NOT NULL UNIQUE PRIMARY KEY, "name" varchar(20) NOT NULL, "gender" varchar(1) NOT NULL, "gender2" varchar(1) NULL);').__class__
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> print_schema_evolution(app)
-['-- FYI: sqlite does not support changing columns, so we create a new "sqlevolve_person" and delete the old  (ie, this could take a while)', 'ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_person_1337_TMP";', 'CREATE TABLE "sqlevolve_person" (\\n    "id" integer NOT NULL UNIQUE PRIMARY KEY,\\n    "name" varchar(20) NOT NULL,\\n    "gender" varchar(1) NOT NULL,\\n    "gender2" varchar(1) NOT NULL\\n)\\n;', 'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender2" FROM "sqlevolve_person_1337_TMP";', 'DROP TABLE "sqlevolve_person_1337_TMP";']
+>>> print_and_evolve(app) #sq6
+['-- FYI: sqlite does not support changing columns, so we create a new "sqlevolve_person" and delete the old  (ie, this could take a while)',
+ 'ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_person_1337_TMP";',
+ 'CREATE TABLE "sqlevolve_person" (\\n    "id" integer NOT NULL UNIQUE PRIMARY KEY,\\n    "name" varchar(20) NOT NULL,\\n    "gender" varchar(1) NOT NULL,\\n    "gender2" varchar(1) NOT NULL\\n)\\n;',
+ 'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender2" FROM "sqlevolve_person_1337_TMP";',
+ 'DROP TABLE "sqlevolve_person_1337_TMP";']
 
 # reset the db
 >>> cursor.execute('DROP TABLE sqlevolve_person;').__class__
@@ -369,10 +410,10 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 
 # delete a datetime column pair, so it looks like we've recently added a datetime field
->>> for sql in ['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"tipo" varchar(40) NOT NULL);']: cursor.execute(sql).__class__
+>>> print_and_execute(['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"tipo" varchar(40) NOT NULL);'])
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> print_schema_evolution(app)
+>>> print_and_evolve(app) #sq7
 ['ALTER TABLE "sqlevolve_muebles" ADD COLUMN "fecha_publicacion" datetime NOT NULL;']
 
 # reset the db
@@ -382,11 +423,8 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 <class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
 
 # delete a column with a default value, so it looks like we've recently added a column
->>> for sql in ['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"fecha_publicacion" datetime NOT NULL);']: cursor.execute(sql).__class__
-<class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
-<class 'django.db.backends.sqlite3.base.SQLiteCursorWrapper'>
->>> print_schema_evolution(app)
+>>> print_and_execute(['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"fecha_publicacion" datetime NOT NULL);'])
+>>> print_and_evolve(app) #sq8
 ['ALTER TABLE "sqlevolve_muebles" ADD COLUMN "tipo" varchar(40) NOT NULL DEFAULT "woot";']
-
 """
 

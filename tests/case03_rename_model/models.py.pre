@@ -12,8 +12,8 @@ class Choice(models.Model):
     "the original name for this model was 'Choice'"
     poll = models.ForeignKey(Poll)
     choice = models.CharField(maxlength=200)
-    number_of_votes = models.IntegerField(aka='number_of_votes') # show that field name changes work too
+    number_of_votes = models.IntegerField(aka='number_of_votes', default='0') # show that field name changes work too
     def __str__(self):
         return self.choice
     class Meta:
-        aka = ('Choice', 'OtherBadName')
+        aka = ('Choice', 'OtherBadName', 'Option')

@@ -13,7 +13,7 @@ class Choice(models.Model):
     poll = models.ForeignKey(Poll)
     option = models.CharField(maxlength=400, aka='choice') # make sure aka still works
     votes = models.IntegerField()
-    votes2 = models.IntegerField() # make sure column adds still work
+    votes2 = models.IntegerField(default='-5') # make sure column adds still work
     def __str__(self):
         return self.choice
 
