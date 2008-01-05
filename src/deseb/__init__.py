@@ -1,5 +1,9 @@
 import django.core.management
-
+try:
+    import django.core.management.sql
+    version = 'trunk'
+except ImportError:
+    version = '0.96'
 """
     django has its own internal set of commands (stored in django.core.management.commands).
     this function adds our commands to django's own.
@@ -40,7 +44,7 @@ def add_aka_support():
                 if self.aka.__class__.__name__=='str':
                     self.aka = (self.aka,)
                 del kwargs['aka']
-            if kwargs.has_key('maxlength'):
+            if version == 'trunk' and kwargs.has_key('maxlength'):
                 kwargs['max_length'] = kwargs['maxlength']
                 del kwargs['maxlength']
             func(self, *args, **kwargs)
@@ -91,34 +95,48 @@ def add_management_commands(func):
         return rv
     return inner
 
+PASS_ARGS = {'--dont-save':'do_save', '--dont-notify':'do_notify', '--noinput': 'interactive'}
+HIDE_ARGS = ['--dont-save', '--dont-notify']
+
+def get_additional_args():
+    import sys
+    kwargs = {}
+    for k,v in PASS_ARGS.items(): 
+        if k in sys.argv: kwargs[v] = False
+    return kwargs
+
 def management_command_evolvedb_v0_96():
     def inner(*args, **kwargs):
-        "Output the SQL ALTER statements to bring your schema up to date with your models."
+        "Interactively runs the SQL statements to bring your schema up to date with your models."
         import schema_evolution
+        kwargs.update(get_additional_args())
         return schema_evolution.run_sql_evolution_v0_96(*args, **kwargs)
-    inner.args = '[--format]' + django.core.management.APP_ARGS
+    inner.args = '[--noinput] [--dont-notify] [--dont-save] ' + django.core.management.APP_ARGS
     return inner
 
 def management_command_sqlevolve_v0_96():
     def inner(*args, **kwargs):
         "Output the SQL ALTER statements to bring your schema up to date with your models."
         import schema_evolution
+        kwargs.update(get_additional_args())
         return schema_evolution.get_sql_evolution_v0_96(*args, **kwargs)
-    inner.args = '[--format]' + django.core.management.APP_ARGS
+    inner.args = '[--noinput] [--dont-notify] ' + django.core.management.APP_ARGS
     return inner
 
 def management_command_sqlfingerprint_v0_96():
     def inner(*args, **kwargs):
-        "Output the SQL ALTER statements to bring your schema up to date with your models."
+        "Prints the app fingerprints."
         import schema_evolution
+        kwargs.update(get_additional_args())
         return schema_evolution.get_sql_fingerprint_v0_96(*args, **kwargs)
-    inner.args = '[--format]' + django.core.management.APP_ARGS
+    inner.args = '' + django.core.management.APP_ARGS
     return inner
 
 def execute_from_command_line_v0_96(func):
-    def inner(*args, **kwargs):
+    def inner(action_mapping, argv):
         add_aka_support()
-        return func(*args, **kwargs)
+        if argv is None: import sys; argv = sys.argv
+        return func(action_mapping, [c for c in argv if not c in HIDE_ARGS])
     return inner
 
 try:
@@ -127,5 +145,6 @@ except:
     django.core.management.DEFAULT_ACTION_MAPPING['evolvedb'] = management_command_evolvedb_v0_96()
     django.core.management.DEFAULT_ACTION_MAPPING['sqlevolve'] = management_command_sqlevolve_v0_96()
     django.core.management.DEFAULT_ACTION_MAPPING['fingerprint'] = management_command_sqlfingerprint_v0_96()
+    django.core.management.NO_SQL_TRANSACTION = tuple(['evolvedb', 'sqlevolve', 'fingerprint']+list(django.core.management.NO_SQL_TRANSACTION))
     django.core.management.execute_from_command_line = execute_from_command_line_v0_96(django.core.management.execute_from_command_line)
     

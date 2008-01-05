@@ -1,8 +1,7 @@
 from django.core.management.base import AppCommand
 
 class Command(AppCommand):
-    help = """Prints the ALTER TABLE SQL statements for the given app name(s), in order to 
-non-destructively bring them into compliance with your models.
+    help = """Prints the app fingerprints
 See: http://code.google.com/p/deseb/wiki/Usage"""
 
     output_transaction = True

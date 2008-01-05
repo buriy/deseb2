@@ -27,3 +27,37 @@ mysql_evolutions = [
         '-- the greater upgrade (ie how many indices in fingerprints it jumps)',
     ],
 ]
+
+# all of your evolution scripts, mapping the from_version and to_version to a list if sql commands
+mysql_evolutions = [
+    [('fv1:-1020759453','fv1:-1020759453'), # generated 2008-01-05 08:17:24.312000
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `question` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `author` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_choice` MODIFY COLUMN `choice` varchar(200) NOT NULL;",
+    ],
+    [('fv1:-1020759453','fv1:-1020759453'), # generated 2008-01-05 08:17:34.562000
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `question` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `author` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_choice` MODIFY COLUMN `choice` varchar(200) NOT NULL;",
+    ],
+    [('fv1:-1020759453','fv1:-1020759453'), # generated 2008-01-05 08:18:02.171000
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `question` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `author` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_choice` MODIFY COLUMN `choice` varchar(200) NOT NULL;",
+    ],
+    [('fv1:-1020759453','fv1:-1020759453'), # generated 2008-01-05 08:19:10.234000
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `question` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `author` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_choice` MODIFY COLUMN `choice` varchar(200) NOT NULL;",
+    ],
+    [('fv1:-1020759453','fv1:-1020759453'), # generated 2008-01-05 08:22:48.359000
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `question` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `author` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_choice` MODIFY COLUMN `choice` varchar(200) NOT NULL;",
+    ],
+    [('fv1:-1020759453','fv1:-1020759453'), # generated 2008-01-05 08:31:42.609000
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `question` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_poll` MODIFY COLUMN `author` varchar(200) NOT NULL;",
+        "ALTER TABLE `case01_add_field_choice` MODIFY COLUMN `choice` varchar(200) NOT NULL;",
+    ],
+] # don't delete this comment! ## mysql_evolutions_end ##

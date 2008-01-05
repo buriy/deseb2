@@ -4,6 +4,7 @@ Schema Evolution Tests
 
 from django.db import models
 from django.conf import settings
+import deseb
 
 GENDER_CHOICES = (
     ('M', 'Male'),
@@ -35,17 +36,20 @@ class C(models.Model):
     c004 = models.CommaSeparatedIntegerField(maxlength='256', aka='xxx')
     c005 = models.DateField(aka='xxx')
     c006 = models.DateTimeField(aka='xxx')
-#    c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx') # not in v0.96
+    if deseb.version == 'trunk':
+        c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx') # not in v0.96
     c008 = models.EmailField(aka='xxx')
     c010 = models.FileField(upload_to='/tmp', aka='xxx')
     c011 = models.FilePathField(aka='xxx')
-#    c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10) # for v0.96
-    c012 = models.FloatField(aka='xxx')
+    if deseb.version == '0.96':
+        c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10) # for v0.96
+    else:
+        c012 = models.FloatField(aka='xxx')
     c013 = models.IPAddressField(aka='xxx')
     c014 = models.ImageField(upload_to='/tmp', aka='xxx')
     c015 = models.IntegerField(aka='xxx')
     c016 = models.NullBooleanField(aka='xxx')
-#    c017 = models.OrderingField(maxlength='256')
+#   c017 = models.OrderingField(maxlength='256')
     c018 = models.PhoneNumberField(aka='xxx')
     c019 = models.PositiveIntegerField(aka='xxx')
     c020 = models.PositiveSmallIntegerField(aka='xxx')

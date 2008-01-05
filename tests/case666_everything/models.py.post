@@ -10,11 +10,15 @@ class rA(models.Model):
     c004 = models.CommaSeparatedIntegerField(maxlength='256')
     c005 = models.DateField()
     c006 = models.DateTimeField()
-    c007 = models.DecimalField(decimal_places=5, max_digits=10)
+    if deseb.version == 'trunk':
+        c007 = models.DecimalField(decimal_places=5, max_digits=10)
     c008 = models.EmailField()
     c010 = models.FileField(upload_to='/tmp')
     c011 = models.FilePathField()
-    c012 = models.FloatField()
+    if deseb.version == 'trunk':
+        c012 = models.FloatField()
+    else:
+        c012 = models.FloatField(decimal_places=5, max_digits=10)
     c013 = models.IPAddressField()
     c014 = models.ImageField(upload_to='/tmp')
     c015 = models.IntegerField()
@@ -35,11 +39,15 @@ class rA(models.Model):
     a004 = models.CommaSeparatedIntegerField(maxlength='256', default='1')
     a005 = models.DateField(default=datetime.datetime.now())
     a006 = models.DateTimeField(default=datetime.datetime.now())
-    a007 = models.DecimalField(decimal_places=5, max_digits=10, default=2)
+    if deseb.version == 'trunk':
+        a007 = models.DecimalField(decimal_places=5, max_digits=10, default=2)
     a008 = models.EmailField(default='x')
     a010 = models.FileField(upload_to='/tmp', default='')
     a011 = models.FilePathField(default='x')
-    a012 = models.FloatField(default=2.0)
+    if deseb.version == 'trunk':
+        a012 = models.FloatField(default=2.0)
+    else:
+        a012 = models.FloatField(default=2.0, decimal_places=5, max_digits=10)
     a013 = models.IPAddressField(default='0.0.0.0')
     a014 = models.ImageField(upload_to='/tmp', default='')
     a015 = models.IntegerField(default='0')
@@ -66,11 +74,15 @@ class rB(models.Model):
     r004 = models.CommaSeparatedIntegerField(maxlength='256', default='1', null=True, blank=True, aka='c004')
     r005 = models.DateField(default=datetime.datetime.now(), null=True, blank=True, aka='c005')
     r006 = models.DateTimeField(default=datetime.datetime.now(), null=True, blank=True, aka='c006')
-    r007 = models.DecimalField(decimal_places=5, max_digits=10, default=2, null=True, blank=True, aka='c007')
+    if deseb.version == 'trunk':
+        r007 = models.DecimalField(decimal_places=5, max_digits=10, default=2, null=True, blank=True, aka='c007')
     r008 = models.EmailField(default='x', null=True, blank=True, aka='c008')
     r010 = models.FileField(upload_to='/tmp', null=True, blank=True, aka='c010')
     r011 = models.FilePathField(default='x', null=True, blank=True, aka='c011')
-    r012 = models.FloatField(default=2.0, null=True, blank=True, aka='c012')
+    if deseb.version == 'trunk':
+        c012 = models.FloatField(default=2.0, null=True, blank=True, aka='c012')
+    else:
+        c012 = models.FloatField(decimal_places=5, max_digits=10, default=2.0, null=True, blank=True, aka='c012')
     r013 = models.IPAddressField(default='0.0.0.0', null=True, blank=True, aka='c013')
     r014 = models.ImageField(upload_to='/tmp', null=True, blank=True, aka='c014')
     r015 = models.IntegerField(default=2, null=True, blank=True, aka='c015')

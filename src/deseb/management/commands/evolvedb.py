@@ -10,8 +10,8 @@ class Command(AppCommand):
         make_option('--dont-notify', action='store_false', dest='do_notify', default=True,
             help='Don\'t save evolution to schema_evolution.py near to models.py.'),
     )
-    help = """Prints the ALTER TABLE SQL statements for the given app name(s), in order to 
-non-destructively bring them into compliance with your models.
+    help = """Interactively runs the SQL statements to non-destructively 
+bring your schema into compliance with your models.
 See: http://code.google.com/p/deseb/wiki/Usage"""
 
     output_transaction = True

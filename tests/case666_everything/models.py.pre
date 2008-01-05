@@ -10,11 +10,15 @@ class A(models.Model):
     c004 = models.CommaSeparatedIntegerField(maxlength='256')
     c005 = models.DateField()
     c006 = models.DateTimeField()
-    c007 = models.DecimalField(decimal_places=5, max_digits=10)
+    if deseb.version == 'trunk':
+        c007 = models.DecimalField(decimal_places=5, max_digits=10)
     c008 = models.EmailField()
     c010 = models.FileField(upload_to='/tmp')
     c011 = models.FilePathField()
-    c012 = models.FloatField()
+    if deseb.version == 'trunk':
+        c012 = models.FloatField()
+    else:
+        c012 = models.FloatField(decimal_places=5, max_digits=10)
     c013 = models.IPAddressField()
     c014 = models.ImageField(upload_to='/tmp')
     c015 = models.IntegerField()
@@ -39,11 +43,15 @@ class B(models.Model):
     c004 = models.CommaSeparatedIntegerField(maxlength='256', default='1')
     c005 = models.DateField(default=datetime.date(2007,1,1))
     c006 = models.DateTimeField(default=datetime.datetime(2007,1,1))
-    c007 = models.DecimalField(decimal_places=5, max_digits=10, default=2)
+    if deseb.version == 'trunk':
+        c007 = models.DecimalField(decimal_places=5, max_digits=10, default=2)
     c008 = models.EmailField(default='x')
     c010 = models.FileField(upload_to='/tmp')
     c011 = models.FilePathField(default='x')
-    c012 = models.FloatField(default=2.0)
+    if deseb.version == 'trunk':
+        c012 = models.FloatField(aka='xxx')
+    else:
+        c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10)
     c013 = models.IPAddressField()
     c014 = models.ImageField(upload_to='/tmp')
     c015 = models.IntegerField(default=2)
@@ -68,11 +76,15 @@ class C(models.Model):
     c004 = models.CommaSeparatedIntegerField(maxlength='256', aka='xxx')
     c005 = models.DateField(aka='xxx')
     c006 = models.DateTimeField(aka='xxx')
-    c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx')
+    if deseb.version == 'trunk':
+        c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx')
     c008 = models.EmailField(aka='xxx')
     c010 = models.FileField(upload_to='/tmp', aka='xxx')
     c011 = models.FilePathField(aka='xxx')
-    c012 = models.FloatField(aka='xxx')
+    if deseb.version == 'trunk':
+        c012 = models.FloatField(aka='xxx')
+    else:
+        c012 = models.FloatField(aka='xxx', decimal_places=5, max_digits=10)
     c013 = models.IPAddressField(aka='xxx')
     c014 = models.ImageField(upload_to='/tmp', aka='xxx')
     c015 = models.IntegerField(aka='xxx')
@@ -88,4 +100,3 @@ class C(models.Model):
     c025 = models.URLField(aka='xxx')
     c026 = models.USStateField(aka='xxx')
     c027 = models.XMLField(aka='xxx')
-

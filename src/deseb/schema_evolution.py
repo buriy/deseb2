@@ -6,6 +6,7 @@ import os, re, shutil, sys, textwrap, datetime
 try:
     import django.core.management.sql as management
     from django.core.management import color
+    version = 'trunk'
 except ImportError:
     # v0.96 compatibility
     import django.core.management as management
@@ -19,6 +20,7 @@ except ImportError:
                     return lambda x: x
             return no_style()
     color = color_class()
+    version = '0.96'
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
@@ -196,7 +198,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
             is_postgresql = settings.DATABASE_ENGINE in ['postgresql', 'postgresql_psycopg2']
             column_flags = introspection.get_known_column_flags(cursor, db_table, cf)
             f_default = get_field_default(f)
-            f_maxlength = str(getattr(f, 'max_length', ''))
+            f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', '')))
             db_maxlength = str(column_flags.get('max_length', 64000))
             update_length = ( not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
                ( not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
@@ -277,11 +279,11 @@ def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, a
             delete_tables.add(t)
     return ops.get_drop_table_sql(delete_tables)
 
-def get_sql_evolution_v0_96(app):
-    return get_sql_evolution(app, management.style)
+def get_sql_evolution_v0_96(app, do_notify=True):
+    return get_sql_evolution(app, management.style, do_notify)
 
-def run_sql_evolution_v0_96(app):
-    return evolvedb(app, True)
+def run_sql_evolution_v0_96(app, interactive=True, do_save=True, do_notify=True):
+    return evolvedb(app, interactive, do_save, do_notify)
 
 def get_sql_evolution(app, style, notify=True):
     "Returns SQL to update an existing schema to match the existing models."
@@ -652,7 +654,6 @@ def evolvedb(app, interactive, do_save, do_notify):
             print 'Notice: %s.schema_evolution module found (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
 
     while True:
-        
         commands = []
         commands_color = []
     
@@ -701,8 +702,6 @@ def evolvedb(app, interactive, do_save, do_notify):
             if commands and not managed_upgrade and (schema_fingerprint,new_schema_fingerprint) not in all_upgrade_paths:
                 if interactive and do_save:
                     confirm = raw_input("do you want to save these commands in %s.schema_evolution?\ntype 'yes' to continue, or 'no' to cancel: " % app_name)
-        else:
-            confirm = 'yes'
         if confirm == 'yes':
             if do_save:
                 save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint )
@@ -726,4 +725,4 @@ def evolvedb(app, interactive, do_save, do_notify):
     
         if schema_fingerprint in seen_schema_fingerprints:
             break
-    
+

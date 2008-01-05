@@ -11,7 +11,7 @@ class Topic(models.Model):
                         ('Food', 'Food'),
                         ('Toys', 'Toys'),
                         )
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    category = models.CharField(maxlength=50, choices=CATEGORY_CHOICES)
     
     create_date = models.DateField('date added', auto_now_add=True)
     updated_date = models.DateField('date updated', auto_now=True)
