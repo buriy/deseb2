@@ -46,17 +46,6 @@ class DatabaseOperations:
         return output
 
     def get_change_column_def_sql( self, table_name, col_name, col_type, f, column_flags, f_default, updates ):
-        #import pprint; pprint.pprint(col_name); pprint.pprint(column_flags)
-#        if updates['update_sequences']:
-#            import sys, pprint
-#            print >>sys.stderr, 'options:'
-#            print >>sys.stderr, table_name
-#            print >>sys.stderr, col_name
-#            print >>sys.stderr, col_type
-#            #print >>sys.stderr, pprint.pformat(f.__dict__)
-#            print >>sys.stderr, pprint.pformat(column_flags)
-#            print >>sys.stderr, str(f_default)
-#            print >>sys.stderr, pprint.pformat(updates)
         from django.db.models.fields import NOT_PROVIDED
         output = []
         qn = self.connection.ops.quote_name
@@ -252,12 +241,4 @@ class DatabaseIntrospection:
                     if row[1].startswith("nextval('") and row[1].endswith("'::regclass)"):
                         dict['sequence'] = row[1][9:-12]
                     continue
-                if row[1][0] == "'":
-                    dict['default'] = row[1][1:row[1].index("'",1)]
-                else:
-                    dict['default'] = row[1]
-        if not dict.has_key('default'):
-            dict['default'] = NOT_PROVIDED
-        if dict['default'] == 'false': dict['default'] = False
-        if dict['default'] == 'true': dict['default'] = True
         return dict

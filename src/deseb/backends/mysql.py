@@ -217,12 +217,5 @@ class DatabaseIntrospection:
                 if row[3]=='UNI': dict['unique'] = True
                 else: dict['unique'] = False
                 
-                # f_default value check goes here
-                # if row[4]=='NULL': dict['f_default'] = None
-                # else: dict['f_default'] = row[4]
-                dict['default'] = row[4]
-                if not dict['default']:
-                    dict['default'] = django.db.models.fields.NOT_PROVIDED
-                
         # print table_name, column_name, dict
         return dict

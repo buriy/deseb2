@@ -2,7 +2,7 @@ from django.core.exceptions import ImproperlyConfigured
 from optparse import OptionParser
 from django.utils import termcolors
 from django.conf import settings
-import os, re, shutil, sys, textwrap, datetime
+import os, re, shutil, sys, textwrap, datetime, traceback
 try:
     import django.core.management.sql as management
     from django.core.management import color
@@ -465,7 +465,7 @@ def get_fingerprints_evolutions_from_app(app, style, notify):
         evolutions = {}
         fingerprints = []
         end_fingerprints = []
-        for x in evolutions_list.keys():
+        for x in evolutions_list:
             if evolutions.has_key(x[0]):
                 if notify: sys.stderr.write(style.NOTICE("Warning: Fingerprint mapping %s is defined twice in %s.schema_evolution\n" % (str(x[0]),app_name)))
             else:
@@ -504,6 +504,7 @@ def get_sql_fingerprint(app, style, notify=True):
         else:
             if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
     except:
+        traceback.print_exc()
         if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
     return
 
@@ -699,12 +700,16 @@ def evolvedb(app, interactive, do_save, do_notify):
             if interactive: print 'schema upgrade executed'
             new_schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
             
-            if commands and not managed_upgrade and (schema_fingerprint,new_schema_fingerprint) not in all_upgrade_paths:
-                if interactive and do_save:
-                    confirm = raw_input("do you want to save these commands in %s.schema_evolution?\ntype 'yes' to continue, or 'no' to cancel: " % app_name)
-        if confirm == 'yes':
-            if do_save:
-                save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint )
+            if schema_fingerprint==new_schema_fingerprint:
+                print "schema fingerprint was unchanged - this really shouldn't happen"
+            else:
+                if commands and not managed_upgrade and (schema_fingerprint,new_schema_fingerprint) not in all_upgrade_paths:
+                    if interactive and do_save:
+                        confirm = raw_input("do you want to save these commands in %s.schema_evolution?\ntype 'yes' to continue, or 'no' to cancel: " % app_name)
+                    else:
+                        confirm = 'yes'
+                    if do_save and confirm == 'yes':
+                        save_managed_evolution( app, commands, schema_fingerprint, new_schema_fingerprint )
             
             if not managed_upgrade: break
         else:

@@ -38,7 +38,7 @@ class DatabaseOperations:
         output = []
         output.append( '-- FYI: sqlite does not support renaming columns, so we create a new '
                        + qn(table_name) 
-                       +' and delete the old  (ie, this could take a while)' )
+                       +' and delete the old  (ie, this could take a while if you have a lot of data)' )
     
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend( self.get_change_table_name_sql( tmp_table_name, table_name ) )
@@ -69,7 +69,7 @@ class DatabaseOperations:
         output = []
         output.append( '-- FYI: sqlite does not support changing columns, so we create a new '
                        + qn(table_name) +' and delete the old '
-                       +'(ie, this could take a while)' )
+                       +'(ie, this could take a while if you have a lot of data)' )
     
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend( self.get_change_table_name_sql( tmp_table_name, table_name ) )
@@ -88,21 +88,27 @@ class DatabaseOperations:
     def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, f_default ):
         output = []
         field_output = []
-        qn = self.connection.ops.quote_name
-        kw = self.style.SQL_KEYWORD
-        tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        field_output.append(kw('ALTER TABLE') + tqn(table_name))
-        field_output.append(kw('ADD COLUMN') + fqn(col_name))
+        if not null:
+            if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
+                # since we can't add a null column and then change it after we've set all the default values,
+                # add a null column, set it's default values, then replace the whole table via get_change_column_def_sql
+                output.extend( self.get_add_column_sql( table_name, col_name, col_type, True, unique, primary_key, default ) )
+                output.extend( [ self.style.SQL_KEYWORD('UPDATE'), self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)), 
+                                self.style.SQL_KEYWORD('SET'), self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)), '=', 
+                                self.quote_value(default) ], self.style.SQL_KEYWORD('WHERE'), self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)),
+                                self.style.SQL_KEYWORD('IS NULL'), )
+                output.extend( get_change_column_def_sql( self, table_name, col_name, col_type, None, None ) )
+                return output
+        field_output.append(self.style.SQL_KEYWORD('ALTER TABLE'))
+        field_output.append(self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)))
+        field_output.append(self.style.SQL_KEYWORD('ADD COLUMN'))
+        field_output.append(self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)))
         field_output.append(col_type)
         field_output.append(kw('%sNULL' % (not null and 'NOT ' or '')))
         if unique or primary_key:
             field_output.append(kw('UNIQUE'))
         if primary_key:
-            field_output.append(kw('PRIMARY KEY'))
-        if f_default!=None and str(f_default) != 'django.db.models.fields.NOT_PROVIDED':
-            field_output.append(kw('DEFAULT'))
-            field_output.append(qn(str(f_default)))
+            field_output.append((self.style.SQL_KEYWORD('PRIMARY KEY')))
         output.append(' '.join(field_output) + ';')
         return output
     
@@ -114,7 +120,7 @@ class DatabaseOperations:
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         output = []
         output.append( '-- FYI: sqlite does not support deleting columns, so we create a new '
-                       + qn(table_name) +' and delete the old  (ie, this could take a while)' )
+                       + qn(table_name) +' and delete the old  (ie, this could take a while if you have a lot of data)' )
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend( self.get_change_table_name_sql( tmp_table_name, table_name ) )
         output.extend( model_create(model, set(), self.style)[0] )
@@ -152,10 +158,31 @@ class DatabaseIntrospection:
         self.connection = connection
     
     def get_schema_fingerprint( self, cursor, app):
-        pass
+        """it's important that the output of these methods don't change, otherwise the hashes they
+        produce will be inconsistent (and detection of existing schemas will fail.  unless you are 
+        absolutely sure the outout for ALL valid inputs will remain the same, you should bump the version by creating a new method"""
+        return self.get_schema_fingerprint_fv1(cursor, app)
     
     def get_schema_fingerprint_fv1( self, cursor, app):
-        pass
+        from django.db import models
+        app_name = app.__name__.split('.')[-2]
+    
+        schema = ['app_name := '+ app_name]
+    
+        cursor.execute("select * from sqlite_master where type='table' order by name;")
+        for row in cursor.fetchall():
+            table_name = row[1]
+            if not table_name.startswith(app_name):
+                continue    # skip tables not in this app
+            table_description = [ s.strip() for s in row[4].split('\n')[1:-1] ]
+            table_description.sort()
+            schema.append('table_name := '+ table_name)
+            for s in table_description:
+                schema.append( '\t'+s )
+        
+        schema_string = '\n'.join(schema)
+        #print 'schema_string', schema_string
+        return 'fv1:'+ str(schema_string.__hash__())
 
     def get_columns( self, cursor, table_name):
         try:
@@ -173,9 +200,8 @@ class DatabaseIntrospection:
         dict['primary_key'] = False
         dict['foreign_key'] = False
         dict['unique'] = False
-        dict['default'] = ''
         dict['allow_null'] = True
-    
+        
         for row in cursor.fetchall():
     #        print row
             if row[1] == column_name:
@@ -190,30 +216,12 @@ class DatabaseIntrospection:
                 # f_default flag check goes here
                 dict['allow_null'] = row[3]==0
                 
-                # f_default value check goes here
-                dict['default'] = row[4]
-                if not dict['default']:
-                    dict['default'] = django.db.models.fields.NOT_PROVIDED
-    
-        cursor.execute("PRAGMA index_list(%s)" % qn(table_name))
-        index_names = []
+        cursor.execute("select sql from sqlite_master where name=%s;" % self.connection.ops.quote_name(table_name))
         for row in cursor.fetchall():
-            index_names.append(row[1])
-        for index_name in index_names:
-            cursor.execute("PRAGMA index_info(%s)" % qn(index_name))
-            for row in cursor.fetchall():
-                if row[2]==column_name:
-                    if col_type=='integer': dict['primary_key'] = True  # sqlite3 does not distinguish between unique and pk; all 
-                    else: dict['unique'] = True                         # unique integer columns are treated as part of the pk.
-    
-                # primary/foreign/unique key flag check goes here
-                #if row[3]=='PRI': dict['primary_key'] = True
-                #else: dict['primary_key'] = False
-                #if row[3]=='FOR': dict['foreign_key'] = True
-                #else: dict['foreign_key'] = False
-                #if row[3]=='UNI': dict['unique'] = True
-                #else: dict['unique'] = False
-                
-    
+            table_description = [ s.strip() for s in row[0].split('\n')[1:-1] ]
+            for column_description in table_description:
+                if column_description.startswith('"'+column_name+'"'):
+                    dict['primary_key'] = column_description.find('PRIMARY KEY')>-1
+        
     #    print dict
         return dict
