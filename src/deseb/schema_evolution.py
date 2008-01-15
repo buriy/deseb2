@@ -638,7 +638,7 @@ def save_managed_evolution( app, commands, schema_fingerprint, new_schema_finger
     file = open(se_file, 'w')
     file.writelines(contents)
     
-def evolvedb(app, interactive, do_save, do_notify):
+def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgrade_only=False):
     from django.db import connection
     cursor = connection.cursor()
 
@@ -670,7 +670,7 @@ def evolvedb(app, interactive, do_save, do_notify):
             if do_notify or interactive: 
                 print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1], best_upgrade[3]
             commands_color = commands = best_upgrade[2]
-        else:
+        elif not managed_upgrade_only:
             commands = get_introspected_evolution_options(app, style)
             commands_color = get_introspected_evolution_options(app, color.color_style())
             if interactive:
@@ -679,11 +679,11 @@ def evolvedb(app, interactive, do_save, do_notify):
     #            else:
     #                print '%s: schema is up to date' % app_name
             
-        if interactive or DEBUG:
-            if commands:
+        if commands:
+            if interactive or DEBUG:
                 for cmd in commands_color:
                     print cmd
-            else:
+        else:
                 break
     
         if interactive:
@@ -723,7 +723,7 @@ def evolvedb(app, interactive, do_save, do_notify):
             if schema_fingerprint==best_upgrade[1]:
                 if do_notify: print '\tfingerprint verification successful'
             else:
-                if do_notify: print '\tfingerprint verification failed'
+                if do_notify: print "\tfingerprint verification failed (is '%s'; was expecting '%s')" % (schema_fingerprint, best_upgrade[1])
             break
         
         print
