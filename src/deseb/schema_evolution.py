@@ -302,11 +302,11 @@ def get_sql_evolution_detailed(app, style, notify):
     schema_fingerprint = introspection.get_schema_fingerprint(cursor, app)
     schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style, notify)
     if schema_recognized:
-            if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
+            if notify: sys.stderr.write(style.NOTICE("deseb: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
             final_output.extend( best_upgrade[2] )
             return schema_fingerprint, False, final_output
     else:
-        if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
+        if notify: sys.stderr.write(style.NOTICE("deseb: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
 
     final_output.extend( get_introspected_evolution_options(app, style) )
         
@@ -500,12 +500,12 @@ def get_sql_fingerprint(app, style, notify=True):
         # is this a schema we recognize?
         schema_recognized = schema_fingerprint in fingerprints
         if schema_recognized:
-            if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
+            if notify: sys.stderr.write(style.NOTICE("deseb: Current schema fingerprint for '%s' is '%s' (recognized)\n" % (app_name, schema_fingerprint)))
         else:
-            if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
+            if notify: sys.stderr.write(style.NOTICE("deseb: Current schema fingerprint for '%s' is '%s' (unrecognized)\n" % (app_name, schema_fingerprint)))
     except:
         traceback.print_exc()
-        if notify: sys.stderr.write(style.NOTICE("Notice: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
+        if notify: sys.stderr.write(style.NOTICE("deseb: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
     return
 
 def get_sql_all(app, style):
@@ -652,7 +652,7 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgra
     fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, do_notify)
     if fingerprints and evolutions:
         if do_notify:
-            print 'Notice: %s.schema_evolution module found (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
+            print 'deseb: %s.schema_evolution module found (%i fingerprints, %i evolutions)' % (app_name, len(fingerprints), len(evolutions))
 
     while True:
         commands = []
@@ -662,9 +662,9 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgra
         schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = get_managed_evolution_options(app, schema_fingerprint, style, do_notify)
         if fingerprints and evolutions:
             if schema_recognized:
-                if do_notify or interactive: print "Notice: fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
+                if do_notify or interactive: print "deseb: fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
             else:
-                if do_notify or interactive: print "Notice: fingerprint for '%s' is '%s' (unrecognized)" % (app_name, schema_fingerprint)
+                if do_notify or interactive: print "deseb: fingerprint for '%s' is '%s' (unrecognized)" % (app_name, schema_fingerprint)
         managed_upgrade = schema_recognized and available_upgrades and best_upgrade and best_upgrade[3]>0
         if managed_upgrade:
             if do_notify or interactive: 
