@@ -42,7 +42,7 @@ class DatabaseOperations:
     
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend( self.get_change_table_name_sql( tmp_table_name, table_name ) )
-        output.extend( model_create(model, set(), self.style)[0] )
+        output.extend( model_create(model, self.get_all_models_in_app_from_table_name(table_name), self.style)[0] )
     
         old_cols = []
         for f in model._meta.fields:
@@ -73,7 +73,7 @@ class DatabaseOperations:
     
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend( self.get_change_table_name_sql( tmp_table_name, table_name ) )
-        output.extend( model_create(model, set(), self.style)[0] )
+        output.extend( model_create(model, self.get_all_models_in_app_from_table_name(table_name), self.style)[0] )
     
         old_cols = []
         for f in model._meta.fields:
@@ -85,26 +85,27 @@ class DatabaseOperations:
     
         return output
     
-    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, f_default ):
+    def get_add_column_sql( self, table_name, col_name, col_type, null, unique, primary_key, default ):
         output = []
         field_output = []
         if not null:
-            if default!=None and str(default) != 'django.db.models.fields.NOT_PROVIDED':
-                # since we can't add a null column and then change it after we've set all the default values,
-                # add a null column, set it's default values, then replace the whole table via get_change_column_def_sql
-                output.extend( self.get_add_column_sql( table_name, col_name, col_type, True, unique, primary_key, default ) )
-                output.extend( [ self.style.SQL_KEYWORD('UPDATE'), self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)), 
-                                self.style.SQL_KEYWORD('SET'), self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)), '=', 
-                                self.quote_value(default) ], self.style.SQL_KEYWORD('WHERE'), self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)),
-                                self.style.SQL_KEYWORD('IS NULL'), )
-                output.extend( get_change_column_def_sql( self, table_name, col_name, col_type, None, None ) )
-                return output
+            if default==None or str(default) == 'django.db.models.fields.NOT_PROVIDED':
+                default = ''
+            # since we can't add a null column and then change it after we've set all the default values,
+            # add a null column, set it's default values, then replace the whole table via get_change_column_def_sql
+            output.extend( self.get_add_column_sql( table_name, col_name, col_type, True, unique, primary_key, default ) )
+            output.append( ' '.join( [ self.style.SQL_KEYWORD('UPDATE'), self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)),  
+                            self.style.SQL_KEYWORD('SET'), self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)), '=', 
+                            self.quote_value(default) , self.style.SQL_KEYWORD('WHERE'), self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)), 
+                            self.style.SQL_KEYWORD('IS NULL'), ';' ] ) ) 
+            output.extend( self.get_change_column_def_sql( table_name, col_name, col_type, None, None, None, {'update_null': True} ) )
+            return output
         field_output.append(self.style.SQL_KEYWORD('ALTER TABLE'))
         field_output.append(self.style.SQL_TABLE(self.connection.ops.quote_name(table_name)))
         field_output.append(self.style.SQL_KEYWORD('ADD COLUMN'))
         field_output.append(self.style.SQL_FIELD(self.connection.ops.quote_name(col_name)))
         field_output.append(col_type)
-        field_output.append(kw('%sNULL' % (not null and 'NOT ' or '')))
+        field_output.append(self.style.SQL_KEYWORD('%sNULL' % (not null and 'NOT ' or '')))
         if unique or primary_key:
             field_output.append(kw('UNIQUE'))
         if primary_key:
@@ -123,7 +124,7 @@ class DatabaseOperations:
                        + qn(table_name) +' and delete the old  (ie, this could take a while if you have a lot of data)' )
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend( self.get_change_table_name_sql( tmp_table_name, table_name ) )
-        output.extend( model_create(model, set(), self.style)[0] )
+        output.extend( model_create(model, self.get_all_models_in_app_from_table_name(table_name), self.style)[0] )
         new_cols = []
         for f in model._meta.fields:
             new_cols.append( qn(f.column) )
@@ -150,6 +151,17 @@ class DatabaseOperations:
                     if model._meta.db_table == table_name:
                         return model
         return None
+
+    def get_all_models_in_app_from_table_name(self, table_name):
+        print 'table_name', table_name
+        from django.db import models
+        for app in models.get_apps():
+            app_name = app.__name__.split('.')[-2]
+            if table_name.startswith(app_name):
+                for model in models.get_models(app):
+                    if model._meta.db_table == table_name:
+                        return set( models.get_models(app) )
+        return set()
 
     
 class DatabaseIntrospection:
