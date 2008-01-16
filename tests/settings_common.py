@@ -1,5 +1,4 @@
 import deseb
-
 # Django settings for evolvedb project.
 
 DEBUG = True
@@ -69,6 +68,7 @@ INSTALLED_APPS = (
     'case03_rename_model',
     'case04_change_flag',
     'case05_remove_field',
+    'case06_create_model',
     'case666_everything',
     'issue3_intfield_default_value',
     'issue4_textfield_add',
