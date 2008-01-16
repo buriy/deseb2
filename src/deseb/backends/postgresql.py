@@ -164,7 +164,7 @@ class DatabaseOperations:
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         for table_name in delete_tables:
             output.append( 
-                kw('DROP TABLE ')+ tqn(table_name) + ';' )
+                kw('DROP TABLE ')+ tqn(table_name) + ' CASCADE;' )
         return output
     
     def get_autoinc_sql(self, table):

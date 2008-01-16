@@ -2,6 +2,7 @@ from django.core.exceptions import ImproperlyConfigured
 from optparse import OptionParser
 from django.utils import termcolors
 from django.conf import settings
+
 import os, re, shutil, sys, textwrap, datetime, traceback
 try:
     import django.core.management.sql as management
@@ -313,9 +314,11 @@ def get_sql_evolution_detailed(app, style, notify):
     return schema_fingerprint, True, final_output
 
 
-def _get_sql_model_create(model, known_models, style):
-    import django.core.management.sql
-    return django.core.management.sql.sql_model_create( model, style, known_models )
+def fixed_sql_model_create(model, known_models, style):
+    if version == 'trunk':
+        return management.sql_model_create( model, style, known_models )
+    else:
+        return management._get_sql_model_create( model, known_models )
 
 def _get_many_to_many_sql_for_field(model, f, style):
     from django.db import backend, models, connection
@@ -489,7 +492,7 @@ def get_introspected_evolution_options(app, style):
                 aka_db_tables.add( "%s_%s" % (model._meta.app_label, x.lower()) )
         if model._meta.db_table in table_list or len(aka_db_tables & set(table_list))>0:
             continue
-        sql, references = _get_sql_model_create(model, seen_models, style)
+        sql, references = fixed_sql_model_create(model, seen_models, style)
         final_output.extend(sql)
         seen_models.add(model)
         created_models.add(model)
