@@ -314,81 +314,8 @@ def get_sql_evolution_detailed(app, style, notify):
 
 
 def _get_sql_model_create(model, known_models, style):
-    """
-    Get the SQL required to create a single model.
-
-    Returns list_of_sql, pending_references_dict
-    """
-    from django.db import backend, models, connection
-    
-    ops, introspection = get_operations_and_introspection_classes(style)
-
-    opts = model._meta
-    final_output = []
-    table_output = []
-    pending_references = {}
-    for f in opts.fields:
-        col_type = f.db_type()
-        try:
-            tablespace = f.db_tablespace or opts.db_tablespace
-        except: # v0.96 compatibility
-            tablespace = None
-        if col_type is None:
-            # Skip ManyToManyFields, because they're not represented as
-            # database columns in this table.
-            continue
-        # Make the definition (e.g. 'foo VARCHAR(30)') for this field.
-        field_output = [style.SQL_FIELD(connection.ops.quote_name(f.column)),
-            style.SQL_COLTYPE(col_type)]
-        field_output.append(style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or '')))
-        if (f.unique and (not f.primary_key or backend.allows_unique_and_pk)) or (f.primary_key and ops.pk_requires_unique):
-            field_output.append(style.SQL_KEYWORD('UNIQUE'))
-        if f.primary_key:
-            field_output.append(style.SQL_KEYWORD('PRIMARY KEY'))
-        if tablespace and backend.supports_tablespaces and (f.unique or f.primary_key) and backend.autoindexes_primary_keys:
-            # We must specify the index tablespace inline, because we
-            # won't be generating a CREATE INDEX statement for this field.
-            field_output.append(backend.get_tablespace_sql(tablespace, inline=True))
-        if f.rel:
-            if f.rel.to in known_models:
-                field_output.append(style.SQL_KEYWORD('REFERENCES') + ' ' + \
-                    style.SQL_TABLE(connection.ops.quote_name(f.rel.to._meta.db_table)) + ' (' + \
-                    style.SQL_FIELD(connection.ops.quote_name(f.rel.to._meta.get_field(f.rel.field_name).column)) + ')' #+
-#                    backend.get_deferrable_sql()
-                )
-            else:
-                # We haven't yet created the table to which this field
-                # is related, so save it for later.
-                pr = pending_references.setdefault(f.rel.to, []).append((model, f))
-        table_output.append(' '.join(field_output))
-    if opts.order_with_respect_to:
-        table_output.append(style.SQL_FIELD(connection.ops.quote_name('_order')) + ' ' + \
-            style.SQL_COLTYPE(models.IntegerField().db_type()) + ' ' + \
-            style.SQL_KEYWORD('NULL'))
-    for field_constraints in opts.unique_together:
-        table_output.append(style.SQL_KEYWORD('UNIQUE') + ' (%s)' % \
-            ", ".join([connection.ops.quote_name(style.SQL_FIELD(opts.get_field(f).column)) for f in field_constraints]))
-
-    full_statement = [style.SQL_KEYWORD('CREATE TABLE') + ' ' + style.SQL_TABLE(connection.ops.quote_name(opts.db_table)) + ' (']
-    for i, line in enumerate(table_output): # Combine and add commas.
-        full_statement.append('    %s%s' % (line, i < len(table_output)-1 and ',' or ''))
-    full_statement.append(')')
-    try:
-        if opts.db_tablespace and backend.supports_tablespaces:
-            full_statement.append(backend.get_tablespace_sql(opts.db_tablespace))
-    except: # v0.96 compatibility
-        pass
-    full_statement.append(';')
-    final_output.append('\n'.join(full_statement))
-
-    if opts.has_auto_field and hasattr(backend, 'get_autoinc_sql'):
-        # Add any extra SQL needed to support auto-incrementing primary keys
-        autoinc_sql = backend.get_autoinc_sql(opts.db_table)
-        if autoinc_sql:
-            for stmt in autoinc_sql:
-                final_output.append(stmt)
-
-    return final_output, pending_references
+    import django.core.management.sql
+    return django.core.management.sql.sql_model_create( model, style, known_models )
 
 def _get_many_to_many_sql_for_field(model, f, style):
     from django.db import backend, models, connection
