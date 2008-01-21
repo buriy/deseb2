@@ -21,7 +21,7 @@ def add_aka_support():
     global added_aka_support
     if added_aka_support: return
     else: added_aka_support = True
-
+    
     import django.db.models 
     
     """
@@ -72,7 +72,6 @@ def add_aka_support():
     def set_model_aka(func):
         def inner(self, cls, name):
             self.aka = None
-#            print self.meta.__dict__
             if self.meta:
                 meta_attrs = self.meta.__dict__
                 if meta_attrs.has_key('aka'):
@@ -95,7 +94,7 @@ def add_management_commands(func):
         return rv
     return inner
 
-PASS_ARGS = {'--dont-save':'do_save', '--dont-notify':'do_notify', '--noinput': 'interactive'}
+PASS_ARGS = {'--dont-save':'do_save', '--dont-notify':'do_notify', '--noinput': 'interactive', '--managed-upgrades-only':'managed_upgrade_only'}
 HIDE_ARGS = ['--dont-save', '--dont-notify']
 
 def get_additional_args():
