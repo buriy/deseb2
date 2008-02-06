@@ -654,7 +654,7 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgra
                 if do_notify: print '\tfingerprint verification successful'
             else:
                 if do_notify: print "\tfingerprint verification failed (is '%s'; was expecting '%s')" % (schema_fingerprint, best_upgrade[1])
-            break
+                break
         
         print
     
