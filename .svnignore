@@ -1,3 +1,4 @@
 tests/default.db 
 tests/settings.py
+tests/django
 .bzr
