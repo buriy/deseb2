@@ -31,7 +31,6 @@ class DatabaseOperations:
     
     def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
         # TODO: only supports a single primary key so far
-        pk_name = None
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
@@ -50,13 +49,14 @@ class DatabaseOperations:
         output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
+        fct = self.style.SQL_COLTYPE 
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         if updates['update_type']:
             output.append( 
                 kw('ALTER TABLE ') + tqn(table_name) +
-                kw(' ADD COLUMN ') + fqn(col_name+'_tmp') + ' ' + kw(col_type) + ';' )
+                kw(' ADD COLUMN ') + fqn(col_name+'_tmp') + ' ' + fct(col_type) + ';' )
             output.append( 
                 kw('UPDATE ') + tqn(table_name) + 
                 kw(' SET ') + fqn(col_name+'_tmp') + 
@@ -72,19 +72,20 @@ class DatabaseOperations:
             output.append( 
                 kw('ALTER TABLE ') + tqn(table_name) + 
                 kw(' ALTER COLUMN ') + fqn(col_name) + 
-                kw(' TYPE ')+ kw(col_type) + ';' )
+                kw(' TYPE ')+ fct(col_type) + ';' )
 
-        if column_flags and 'sequence' in column_flags:
+        if updates['update_sequences'] and column_flags and 'sequence' in column_flags:
             seq_name = column_flags['sequence']
             seq_name_correct = table_name+'_'+col_name+'_seq'
-            output.append( 
-                kw('ALTER TABLE ') + tqn(seq_name) +
-                kw(' RENAME TO ') + tqn(seq_name_correct)+';')
-            output.append( 
-                kw('ALTER TABLE ') + tqn(table_name) +
-                kw(' ALTER COLUMN ') + tqn(col_name) + 
-                kw(' SET DEFAULT nextval(')+
-                fqv(seq_name_correct)+'::regclass);')
+            if seq_name != seq_name_correct:
+                output.append( 
+                    kw('ALTER TABLE ') + tqn(seq_name) +
+                    kw(' RENAME TO ') + tqn(seq_name_correct)+';')
+                output.append( 
+                    kw('ALTER TABLE ') + tqn(table_name) +
+                    kw(' ALTER COLUMN ') + tqn(col_name) + 
+                    kw(' SET DEFAULT nextval(')+
+                    fqv(seq_name_correct)+'::regclass);')
 
         if updates['update_null']:
             if str(f_default)==str(NOT_PROVIDED) and not f.null: 
@@ -119,12 +120,13 @@ class DatabaseOperations:
         output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
+        fct = self.style.SQL_COLTYPE 
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         output.append( 
             kw('ALTER TABLE ') + tqn(table_name) +
-            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + kw(col_type) + ';' )
+            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fct(col_type) + ';' )
         if primary_key: return output
         if str(f_default)==str(NOT_PROVIDED) and not null: 
             details = 'column "%s" into table "%s"' % (col_name, table_name)

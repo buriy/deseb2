@@ -25,20 +25,21 @@ class DatabaseOperations:
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        return [kw('ALTER TABLE ')+ tqn(old_table_name) +
+        return [kw('ALTER TABLE ') + tqn(old_table_name) +
                 kw(' RENAME TO ') + tqn(table_name) + ';']
     
-    def get_change_column_name_sql(self, table_name, indexes, old_col_name, new_col_name, col_def, f):
+    def get_rebuild_table_sql(self, table_name, indexes, old_columns, renamed_columns):
         # sqlite doesn't support column renames, so we fake it
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
+        fqn = lambda s: self.style.SQL_FIELD(qn(s))
+        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         model = self.get_model_from_table_name(table_name)
         output = []
-        output.append('-- FYI: sqlite does not support renaming columns, so we create a new '
-                       + qn(table_name) 
-                       +' and delete the old  (ie, this could take a while if you have a lot of data)')
+        output.append('-- FYI: so we create a new ' + qn(table_name) +' and delete the old ')
+        output.append('-- FYI: this could take a while if you have a lot of data') 
     
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend(self.get_change_table_name_sql(tmp_table_name, table_name))
@@ -46,17 +47,34 @@ class DatabaseOperations:
     
         old_cols = []
         for f in model._meta.fields:
-            if f.column != new_col_name:
-                old_cols.append(qn(f.column))
-            else: 
-                old_cols.append(qn(old_col_name))
-    
-        output.append(kw('INSERT INTO ')+ tqn(table_name) +kw(' SELECT ')
-                       + fld(','.join(old_cols)) +kw(' FROM ')+ tqn(tmp_table_name) +';')
-        output.append(kw('DROP TABLE ')+ tqn(tmp_table_name) +';')
+            if f.column in old_columns:
+                old_cols.append(fqn(f.column))
+            elif f.column in renamed_columns:
+                old_cols.append(fqn(renamed_columns[f.column]))
+            else:
+                NOT_PROVIDED = 'django.db.models.fields.NOT_PROVIDED'
+                default = f.default
+                if default is None or str(default) == NOT_PROVIDED or callable(default):
+                    default = ''
+                old_cols.append(fqv(default))
+
+        output.append(kw('INSERT INTO ') + tqn(table_name) + 
+                      kw(' SELECT ') + fld(','.join(old_cols)) + 
+                      kw(' FROM ') + tqn(tmp_table_name) +';')
+        output.append(kw('DROP TABLE ') + tqn(tmp_table_name) +';')
     
         return output
     
+    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
+        # sqlite doesn't support column modifications, so we fake it
+        qn = self.connection.ops.quote_name
+        model = self.get_model_from_table_name(table_name)
+        if not model: 
+            return ['-- model not found']
+        output = []
+        output.append('-- FYI: sqlite does not support renaming columns')
+        return output
+
     def get_change_column_def_sql(self, table_name, col_name, col_type, f, column_flags, f_default, updates):
         # sqlite doesn't support column modifications, so we fake it
         qn = self.connection.ops.quote_name
@@ -67,80 +85,28 @@ class DatabaseOperations:
         if not model: 
             return ['-- model not found']
         output = []
-        output.append('-- FYI: sqlite does not support changing columns, so we create a new '
-                       + qn(table_name) +' and delete the old '
-                       +'(ie, this could take a while if you have a lot of data)')
-    
-        tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
-        output.extend(self.get_change_table_name_sql(tmp_table_name, table_name))
-        output.extend(model_create(model, self.get_all_models_in_app_from_table_name(table_name), self.style)[0])
-    
-        old_cols = []
-        for f in model._meta.fields:
-            old_cols.append(qn(f.column))
-    
-        output.append(kw('INSERT INTO ')+ tqn(table_name) +kw(' SELECT ')
-                       + fld(','.join(old_cols)) +kw(' FROM ')+ tqn(tmp_table_name) +';')
-        output.append(kw('DROP TABLE ')+ tqn(tmp_table_name) +';')
-    
+        output.append('-- FYI: sqlite does not support changing columns')
         return output
     
     def get_add_column_sql(self, table_name, col_name, col_type, null, unique, primary_key, default):
         # versions >= sqlite 3.2.0, see http://www.sqlite.org/lang_altertable.html
         output = []
-        field_output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
+        fct = self.style.SQL_COLTYPE 
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
-        if not null:
-            if default==None or str(default) == 'django.db.models.fields.NOT_PROVIDED':
-                default = ''
-            # since we can't add a null column and then change it after we've set all the default values,
-            # add a null column, set it's default values, then replace the whole table via get_change_column_def_sql
-            output.extend(self.get_add_column_sql(table_name, col_name, col_type, True, unique, primary_key, default))
+        if unique or primary_key or not null:
+            output.append('-- FYI: sqlite does not support adding primary keys or unique or not null fields')
+        else:
             output.append(' '.join(
-                [ kw('UPDATE'), tqn(table_name), 
-                  kw('SET'), fqn(col_name), '=', fqv(default), 
-                  kw('WHERE'), fqn(col_name), kw('IS NULL'), ';' ])) 
-            output.extend(
-                self.get_change_column_def_sql(table_name, col_name, col_type, None, None, None, {'update_null': True}))
-            return output
-        field_output.append(' '.join([
-            kw('ALTER TABLE'), tqn(table_name), 
-            kw('ADD COLUMN'), fqn(col_name), 
-            kw(col_type), kw('%sNULL' % (not null and 'NOT ' or ''))]))
-        if unique or primary_key:
-            #FIXME: won't work, see sqlite3 docs
-            field_output.append(kw('UNIQUE')) # 
-        if primary_key:
-            #FIXME: won't work, see sqlite3 docs
-            field_output.append((kw('PRIMARY KEY')))
-        output.append(' '.join(field_output) + ';')
+            [ kw('ALTER TABLE'), tqn(table_name), 
+              kw('ADD COLUMN'), fqn(col_name), fct(col_type), 'NULL']))
         return output
     
     def get_drop_column_sql(self, table_name, col_name):
-        model = self.get_model_from_table_name(table_name)
-        qn = self.connection.ops.quote_name
-        kw = self.style.SQL_KEYWORD
-        tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        fqn = lambda s: self.style.SQL_FIELD(qn(s))
         output = []
-        output.append('-- FYI: sqlite does not support deleting columns, so we create a new '
-                       + qn(table_name) +' and delete the old  (ie, this could take a while if you have a lot of data)')
-        tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
-        output.extend(self.get_change_table_name_sql(tmp_table_name, table_name))
-        output.extend(model_create(model, self.get_all_models_in_app_from_table_name(table_name), self.style)[0])
-        new_cols = []
-        for f in model._meta.fields:
-            new_cols.append(qn(f.column))
-        output.append(
-            kw('INSERT INTO ') + tqn(table_name) +
-            kw(' SELECT ') + fqn(','.join(new_cols)) +
-            kw(' FROM ') + tqn(tmp_table_name) + ';')
-        output.append(
-            kw('DROP TABLE ') + tqn(tmp_table_name) + ';')
+        output.append('-- FYI: sqlite does not support deleting columns')
         return output
     
     def get_drop_table_sql(self, delete_tables):
@@ -160,7 +126,7 @@ class DatabaseOperations:
         return None
 
     def get_all_models_in_app_from_table_name(self, table_name):
-        print 'table_name', table_name
+        #print 'table_name', table_name
         from django.db import models
         for app in models.get_apps():
             app_name = app.__name__.split('.')[-2]

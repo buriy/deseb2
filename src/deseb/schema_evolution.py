@@ -150,25 +150,67 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
             col_type_def = style.SQL_COLTYPE(col_type)
             if col_type is not None:
                 col_def = style.SQL_COLTYPE(col_type) +' '+ style.SQL_KEYWORD('%sNULL' % (not f.null and 'NOT ' or ''))
-                if f.unique:
+                if f.unique and not f.primary_key:
                     col_def += style.SQL_KEYWORD(' UNIQUE')
                 if f.primary_key:
                     col_def += style.SQL_KEYWORD(' PRIMARY KEY')
                 output.extend( ops.get_change_column_name_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_type_def, f ) )
     return output
     
+def get_sql_evolution_rebuild_table(klass, old_table_name, style):
+    from django.db import get_introspection_module, connection
+    
+    ops, introspection = get_operations_and_introspection_classes(style)
+
+    cursor = connection.cursor()
+    opts = klass._meta
+    output = []
+    db_table = klass._meta.db_table
+    if old_table_name: 
+        db_table = old_table_name
+
+    existing_fields = introspection.get_columns(cursor,db_table)
+    renamed_fields = {}
+    
+    for f in opts.fields:
+        if f.column in existing_fields:
+            old_col = f.column
+        elif f.aka and len(set(f.aka).intersection(set(existing_fields)))==1:
+            old_col = set(f.aka).intersection(set(existing_fields)).pop()
+        elif f.aka and len(set(f.aka).intersection(set(existing_fields)))>1:
+            details = 'column "%s" of table "%s"' % (f.column, klass._meta.db_table)
+            raise MultipleRenamesPossibleException("when renamed " + details)
+        else:
+            continue
+        if old_col != f.column:
+            renamed_fields[f.column] = old_col
+    
+    output.extend( ops.get_rebuild_table_sql( klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), existing_fields, renamed_fields) )
+    return output
+    
 def get_field_default(f):
-    #from django.db.models.fields import IntegerField, CharField
     from django.db.models.fields import NOT_PROVIDED
     if callable(f.default): return NOT_PROVIDED
     return f.default
+
+def get_field_type(f):
+    f = f.split('(')[0].split(' ')[0]
+    if f in ['integer', 'serial']: return 'int'
+    if f in ['tinyint']: return 'bool'
+    if f in ['decimal']: return 'numeric'
+    return f    
+
+def compare_field_length(f, column_flags):
+    from django.db.models.fields import CharField, SlugField, AutoField
+    f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', '')))
+    db_maxlength = str(column_flags.get('max_length', 64000))
+    return( not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
+          ( not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
 
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
     ops, introspection = get_operations_and_introspection_classes(style)
     
     from django.db import get_creation_module, connection
-    from django.db.models.fields import CharField, SlugField
-    from django.db.models.fields.related import RelatedField, ForeignKey
     data_types = get_creation_module().DATA_TYPES
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)
@@ -199,14 +241,12 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
             is_postgresql = settings.DATABASE_ENGINE in ['postgresql', 'postgresql_psycopg2']
             column_flags = introspection.get_known_column_flags(cursor, db_table, cf)
             f_default = get_field_default(f)
-            f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', '')))
-            db_maxlength = str(column_flags.get('max_length', 64000))
-            update_length = ( not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
-               ( not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
-            if is_postgresql and f_col_type=='serial': f_col_type = 'integer'
-            update_type = column_flags['coltype'].split('(')[0] != f_col_type.split('(')[0]
+            update_length = compare_field_length(f, column_flags)
+            update_type = get_field_type(column_flags['coltype']) != get_field_type(f_col_type)
+            if update_type:
+                print get_field_type(column_flags['coltype']), get_field_type(f_col_type)
             update_unique = ( column_flags['unique']!=f.unique and not (is_postgresql and f.primary_key) )
-            update_null = column_flags['allow_null']!=f.null
+            update_null = column_flags['allow_null'] != f.null and not f.primary_key
             update_primary = column_flags['primary_key']!=f.primary_key
             update_sequences = False
             if column_flags.has_key('sequence'):
@@ -214,7 +254,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
                 update_sequences = column_flags['sequence'] != correct_seq_name
             #if DEBUG and update_length: 
             #    print f_col_type, column_flags['coltype'], column_flags['maxlength']
-            if update_null or update_length or update_unique or update_primary or update_sequences:
+            if update_type or update_null or update_length or update_unique or update_primary or update_sequences:
                 #print "cf, f.default, column_flags['default']", cf, f.default, column_flags['default'], f.default.__class__
                 updates = {
                     'update_type': update_type,
@@ -228,9 +268,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
     return output
 
 def get_sql_evolution_check_for_dead_fields(klass, old_table_name, style):
-    from django.db import get_creation_module, models, get_introspection_module, connection
-    from django.db.models.fields import CharField, SlugField
-    from django.db.models.fields.related import RelatedField, ForeignKey
+    from django.db import connection
     
     ops, introspection = get_operations_and_introspection_classes(style)
 
@@ -483,6 +521,8 @@ def get_introspected_evolution_options(app, style):
     pending_references = {}
     final_output = []
     
+    seen_tables = set()
+
     model_list = models.get_models(app)
     for model in model_list:
         # Create the model's database table, if it doesn't already exist.
@@ -497,6 +537,11 @@ def get_introspected_evolution_options(app, style):
         seen_models.add(model)
         created_models.add(model)
         table_list.append(model._meta.db_table)
+        seen_tables.add(model._meta.db_table)
+        
+        for f in model._meta.many_to_many:
+            if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
+                final_output.extend( _get_many_to_many_sql_for_field(model, f, style) )
 
     # get the existing models, minus the models we've just created
     app_models = models.get_models(app)
@@ -504,26 +549,38 @@ def get_introspected_evolution_options(app, style):
         if model in app_models:
             app_models.remove(model)
 
-    seen_tables = set()
-
     for model in app_models:
-        if model._meta.db_table: seen_tables.add(model._meta.db_table)
-        
+        if model._meta.db_table:
+            seen_tables.add(model._meta.db_table)
         output, old_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
         if old_table_name: seen_tables.add(old_table_name)
         final_output.extend(output)
         
+        rebuild = False
         output = get_sql_evolution_check_for_changed_field_flags(model, old_table_name, style)
+        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
         final_output.extend(output)
     
         output = get_sql_evolution_check_for_changed_field_name(model, old_table_name, style)
         final_output.extend(output)
+        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
         
         output = get_sql_evolution_check_for_new_fields(model, old_table_name, style)
+        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
         final_output.extend(output)
         
         output = get_sql_evolution_check_for_dead_fields(model, old_table_name, style)
+        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
         final_output.extend(output)
+        
+        if rebuild:
+            output = get_sql_evolution_rebuild_table(model, old_table_name, style)
+            final_output.extend(output)
+
+        for f in model._meta.many_to_many:
+            #creating many_to_many table
+            if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
+                seen_tables.add(f.m2m_db_table())
         
     output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
     final_output.extend(output)

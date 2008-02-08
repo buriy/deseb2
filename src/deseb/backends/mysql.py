@@ -6,8 +6,8 @@ class DatabaseOperations:
     
     def quote_value(self, s):
         if type(s) is bool:
-            if s: return "'0'"
-            else: return "'1'"
+            if s: return "'f'"
+            else: return "'t'"
         if type(s) is int:
             return str(s)
         else:
@@ -34,12 +34,13 @@ class DatabaseOperations:
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
+        fct = self.style.SQL_COLTYPE
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         for key in indexes.keys():
             if indexes[key]['primary_key']: pk_name = key
         output = []
-        col_def = fld(col_type)
+        col_def = fct(col_type)
         if not f.primary_key:
             col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
         output.append( 
@@ -52,7 +53,7 @@ class DatabaseOperations:
         from django.db.models.fields import NOT_PROVIDED
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        fld = self.style.SQL_FIELD
+        fct = self.style.SQL_COLTYPE
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
@@ -68,7 +69,7 @@ class DatabaseOperations:
                     kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) + 
                     kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
 
-        col_def = fld(col_type)
+        col_def = fct(col_type)
         if not f.primary_key:
             col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
         #if f.unique:
@@ -86,14 +87,14 @@ class DatabaseOperations:
         output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        fld = self.style.SQL_FIELD
+        fct = self.style.SQL_COLTYPE
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         field_output = []
         field_output.append(
             kw('ALTER TABLE ') + tqn(table_name) +
-            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fld(col_type))
+            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fct(col_type))
         if unique:
             field_output.append(kw('UNIQUE'))
         if primary_key:
@@ -109,7 +110,7 @@ class DatabaseOperations:
                 kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) +
                 kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;') )
         if not null:
-            col_def = fld(col_type) + kw(not null and ' NOT NULL' or '')
+            col_def = fct(col_type) + kw(not null and ' NOT NULL' or '')
             #if unique:
             #    col_def += ' '+ kw('UNIQUE')
             #if primary_key:

@@ -1,6 +1,5 @@
 @echo off
 REM First argument is test application name
-set PYTHONPATH=../src;%PYTHONPATH%
 if "%1"=="" echo No test name given
 if "%1"=="" goto END
 IF NOT EXIST settings.py echo Oops... file settings.py does not exist! Please copy your settings there!

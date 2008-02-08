@@ -11,7 +11,7 @@ class A(models.Model):
     c005 = models.DateField()
     c006 = models.DateTimeField()
     if deseb.version == 'trunk':
-        c007 = models.DecimalField(decimal_places=5, max_digits=10)
+        c007 = models.DecimalField(decimal_places=5, max_digits=10, default='1.2')
     c008 = models.EmailField()
     c010 = models.FileField(upload_to='/tmp')
     c011 = models.FilePathField()
@@ -70,14 +70,14 @@ class B(models.Model):
 
 class C(models.Model):
     "all with akas"
-    c001 = models.AutoField(primary_key=True, aka='xxx')
+    id = models.AutoField(primary_key=True)
     c002 = models.BooleanField(aka='xxx')
     c003 = models.CharField(maxlength='256', aka='xxx')
     c004 = models.CommaSeparatedIntegerField(maxlength='256', aka='xxx')
     c005 = models.DateField(aka='xxx')
     c006 = models.DateTimeField(aka='xxx')
     if deseb.version == 'trunk':
-        c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx')
+        c007 = models.DecimalField(decimal_places=5, max_digits=10, aka='xxx', default=3)
     c008 = models.EmailField(aka='xxx')
     c010 = models.FileField(upload_to='/tmp', aka='xxx')
     c011 = models.FilePathField(aka='xxx')
