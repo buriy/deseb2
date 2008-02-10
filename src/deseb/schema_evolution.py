@@ -97,9 +97,6 @@ def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
             if col_type is not None:
                 output.extend( ops.get_add_column_sql( model._meta.db_table, f.column, style.SQL_COLTYPE(col_type), f.null, f.unique, f.primary_key, f.default ) )
                 output.extend( get_sql_indexes_for_field(model, f, style) )
-    for f in opts.many_to_many:
-        if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
-            output.extend( _get_many_to_many_sql_for_field(model, f, style) )
     return output
 
 def get_sql_evolution_check_for_changed_model_name(klass, style):
@@ -240,11 +237,10 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
             #print cf, data_type, f_col_type
             is_postgresql = settings.DATABASE_ENGINE in ['postgresql', 'postgresql_psycopg2']
             column_flags = introspection.get_known_column_flags(cursor, db_table, cf)
-            f_default = get_field_default(f)
             update_length = compare_field_length(f, column_flags)
             update_type = get_field_type(column_flags['coltype']) != get_field_type(f_col_type)
-            if update_type:
-                print get_field_type(column_flags['coltype']), get_field_type(f_col_type)
+            if DEBUG and update_type:
+                print get_field_type(column_flags['coltype']), '->', get_field_type(f_col_type)
             update_unique = ( column_flags['unique']!=f.unique and not (is_postgresql and f.primary_key) )
             update_null = column_flags['allow_null'] != f.null and not f.primary_key
             update_primary = column_flags['primary_key']!=f.primary_key
@@ -256,6 +252,7 @@ def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style
             #    print f_col_type, column_flags['coltype'], column_flags['maxlength']
             if update_type or update_null or update_length or update_unique or update_primary or update_sequences:
                 #print "cf, f.default, column_flags['default']", cf, f.default, column_flags['default'], f.default.__class__
+                f_default = get_field_default(f)
                 updates = {
                     'update_type': update_type,
                     'update_length': update_length,
@@ -314,7 +311,7 @@ def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, a
         pass
     delete_tables = set()
     for t in table_list:
-        if t.startswith(app_label) and t not in safe_tables:
+        if t.startswith(app_label) and not t in safe_tables:
             delete_tables.add(t)
     return ops.get_drop_table_sql(delete_tables)
 
@@ -518,7 +515,6 @@ def get_introspected_evolution_options(app, style):
     table_list = get_introspection_module().get_table_list(cursor)
     seen_models = management.installed_models(table_list)
     created_models = set()
-    pending_references = {}
     final_output = []
     
     seen_tables = set()
@@ -531,17 +527,13 @@ def get_introspected_evolution_options(app, style):
             for x in model._meta.aka:
                 aka_db_tables.add( "%s_%s" % (model._meta.app_label, x.lower()) )
         if model._meta.db_table in table_list or len(aka_db_tables & set(table_list))>0:
-            continue
+            continue #renamed
         sql, references = fixed_sql_model_create(model, seen_models, style)
         final_output.extend(sql)
         seen_models.add(model)
         created_models.add(model)
         table_list.append(model._meta.db_table)
         seen_tables.add(model._meta.db_table)
-        
-        for f in model._meta.many_to_many:
-            if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
-                final_output.extend( _get_many_to_many_sql_for_field(model, f, style) )
 
     # get the existing models, minus the models we've just created
     app_models = models.get_models(app)
@@ -577,11 +569,12 @@ def get_introspected_evolution_options(app, style):
             output = get_sql_evolution_rebuild_table(model, old_table_name, style)
             final_output.extend(output)
 
+    for model in app_models + list(created_models):
         for f in model._meta.many_to_many:
             #creating many_to_many table
             if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
+                final_output.extend( _get_many_to_many_sql_for_field(model, f, style) )
                 seen_tables.add(f.m2m_db_table())
-        
     output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
     final_output.extend(output)
 

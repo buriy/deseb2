@@ -315,7 +315,8 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 ... );''' )
 >>> silent_execute( 'insert into "sqlevolve_person" values (1,2,3);' )
 >>> print_and_evolve(app) #sq2
-['-- FYI: sqlite does not support adding primary keys or unique or not null fields',
+['-- FYI: sqlite does not support changing columns',
+ '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: so we create a new "sqlevolve_person" and delete the old ',
  '-- FYI: this could take a while if you have a lot of data',
@@ -346,7 +347,8 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 ... );''' )
 >>> silent_execute( 'insert into "sqlevolve_person" values (1,2,3,4,5);' )
 >>> print_and_evolve(app) #sq3
-['-- FYI: sqlite does not support adding primary keys or unique or not null fields',
+['-- FYI: sqlite does not support changing columns',
+ '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- warning: the following may cause data loss',
  '-- FYI: sqlite does not support deleting columns',
  '-- end warning',
@@ -382,7 +384,8 @@ if settings.DATABASE_ENGINE == 'sqlite3':
 ... );''')
 >>> silent_execute( 'insert into "sqlevolve_person" values (1,2,3,4);' )
 >>> print_and_evolve(app) #sq4
-['-- FYI: sqlite does not support renaming columns',
+['-- FYI: sqlite does not support changing columns',
+ '-- FYI: sqlite does not support renaming columns',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: so we create a new "sqlevolve_person" and delete the old ',
  '-- FYI: this could take a while if you have a lot of data',

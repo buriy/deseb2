@@ -1,6 +1,14 @@
 from django.db import models
 import deseb
+if deseb.version == '0.96':
+	from django.db.models import GenericForeignKey, GenericRelation
+else:
+	from django.contrib.contenttypes.generic import GenericForeignKey, GenericRelation
+from django.contrib.contenttypes.models import ContentType
 
+class Empty(models.Model):
+    pass
+        
 class Employee(models.Model):
     employee_code = models.CharField(maxlength=10, primary_key=True,
             db_column = 'code')
@@ -21,6 +29,13 @@ class Business(models.Model):
     def __unicode__(self):
         return self.name
 
-class Empty(models.Model):
-    pass
-        
+class Lol(models.Model):
+    content_type = models.ForeignKey(ContentType)
+    object_id = models.PositiveIntegerField()
+    zzz = GenericForeignKey()
+
+class Fun(models.Model):
+    xxx = GenericRelation(Lol)
+
+class TipTop(models.Model):
+    yyy = models.OneToOneField(Fun, null=True)

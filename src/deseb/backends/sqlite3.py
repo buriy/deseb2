@@ -109,8 +109,15 @@ class DatabaseOperations:
         output.append('-- FYI: sqlite does not support deleting columns')
         return output
     
-    def get_drop_table_sql(self, delete_tables):
-        return []
+    def get_drop_table_sql( self, delete_tables):
+        output = []
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
+        for table_name in delete_tables:
+            output.append( 
+                kw('DROP TABLE ')+ tqn(table_name) + ';' )
+        return output
 
     def get_autoinc_sql(self, table):
         return None
@@ -178,14 +185,15 @@ class DatabaseIntrospection:
             return []
         
     def get_known_column_flags(self, cursor, table_name, column_name):
-        import django.db.models.fields
         qn = self.connection.ops.quote_name
         cursor.execute("PRAGMA table_info(%s)" % qn(table_name))
-        dict = {}
-        dict['primary_key'] = False
-        dict['foreign_key'] = False
-        dict['unique'] = False
-        dict['allow_null'] = True
+        dict = {
+            'primary_key': False,
+            'foreign_key': False,
+            'unique': False,
+            'allow_null': False,
+            'max_length': None
+        }
         
         for row in cursor.fetchall():
     #        print row
@@ -193,20 +201,18 @@ class DatabaseIntrospection:
                 col_type = row[2]
     
                 # maxlength check goes here
+                dict['coltype'] = col_type
                 if row[2][0:7]=='varchar':
                     dict['max_length'] = row[2][8:len(row[2])-1]
-                    dict['coltype'] = 'varchar'
-                else:
-                    dict['coltype'] = col_type
                 # f_default flag check goes here
-                dict['allow_null'] = row[3]==0
+                dict['allow_null'] = (row[3]==0)
                 
         cursor.execute("select sql from sqlite_master where name=%s;" % qn(table_name))
         for row in cursor.fetchall():
             table_description = [ s.strip() for s in row[0].split('\n')[1:-1] ]
             for column_description in table_description:
                 if column_description.startswith('"'+column_name+'"'):
-                    dict['primary_key'] = column_description.find('PRIMARY KEY')>-1
-        
+                    dict['primary_key'] = column_description.find(' PRIMARY KEY')>-1
+                    dict['unique'] = column_description.find(' UNIQUE')>-1
     #    print dict
         return dict

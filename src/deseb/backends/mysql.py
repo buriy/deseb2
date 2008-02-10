@@ -182,7 +182,6 @@ class DatabaseIntrospection:
             cursor.execute("SHOW INDEX FROM %s" % qn(table_name))
             for row in cursor.fetchall():
                 schema.append( '\t'.join([ str(row[0]), str(row[1]), str(row[2]), str(row[3]), str(row[4]), str(row[5]), str(row[9]), ]) )
-            
         return 'fv1:'+ str('\n'.join(schema).__hash__())
 
     def get_columns( self, cursor, table_name):
@@ -193,18 +192,25 @@ class DatabaseIntrospection:
             return []
         
     def get_known_column_flags( self, cursor, table_name, column_name ):
-        import django.db.models.fields
         cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
-        dict = {}
+        dict = {
+            'primary_key': False,
+            'foreign_key': False,
+            'unique': False,
+            'allow_null': False,
+            'max_length': None
+        }
         for row in cursor.fetchall():
             if row[0] == column_name:
     
                 # maxlength check goes here
+                dict['coltype'] = row[1]
                 if row[1][0:7]=='varchar':
                     dict['max_length'] = row[1][8:len(row[1])-1]
-                    dict['coltype'] = 'varchar'
-                else:
-                    dict['coltype'] = row[1]
+                elif row[1]=='text':
+                    dict['max_length'] = 65534
+                elif row[1]=='longtext':
+                    dict['max_length'] = 100000000
                 
                 # f_default flag check goes here
                 if row[2]=='YES': dict['allow_null'] = True
@@ -212,11 +218,8 @@ class DatabaseIntrospection:
                 
                 # primary/foreign/unique key flag check goes here
                 if row[3]=='PRI': dict['primary_key'] = True
-                else: dict['primary_key'] = False
                 if row[3]=='FOR': dict['foreign_key'] = True
-                else: dict['foreign_key'] = False
                 if row[3]=='UNI': dict['unique'] = True
-                else: dict['unique'] = False
                 
         # print table_name, column_name, dict
         return dict

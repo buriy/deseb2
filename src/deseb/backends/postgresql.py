@@ -186,36 +186,98 @@ class DatabaseIntrospection:
 
     def get_columns( self, cursor, table_name):
         try:
-            cursor.execute("SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name)
+            cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name = %s",[table_name])
             return [row[0] for row in cursor.fetchall()]
         except:
             return []
         
+    def get_known_column_flags_new( self, cursor, table_name, column_name ):
+        from django.db.models.fields import NOT_PROVIDED
+        dict = {
+            'primary_key': False,
+            'foreign_key': False,
+            'unique': False,
+#DEFAULT    'default': '',
+            'max_length': '',
+            'allow_null': False,
+        }
+        cursor.execute("""
+            SELECT character_maximum_length, is_nullable, column_default, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = %s AND column_name = %s
+            AND table_schema != 'pg_catalog' AND table_schema != 'information_schema'   
+            """, [table_name,column_name])
+        row = cursor.fetchone()
+        # maxlength check goes here
+        if row[0] != None:
+            dict['max_length'] = str(row[0])
+        # null flag check goes here
+        if row[1] == 'YES':
+            dict['allow_null'] = True 
+        
+        if row[3] == 'character varying':
+            dict['coltype'] = 'varchar'
+        elif row[3]=='text':
+            dict['max_length'] = 64000
+            dict['coltype'] = 'text'
+        else:
+            dict['coltype'] = row[3]
+        # default value check goes here
+        if row[2] and row[2][0:7] == 'nextval':
+                if row[2].startswith("nextval('") and row[2].endswith("'::regclass)"):
+                    dict['sequence'] = row[2][9:-12]
+#DEFAULT     elif row[2][0] == "'":
+#DEFAULT         dict['default'] = row[2][1:row[2].index("'",1)]
+#DEFAULT     else:
+#DEFAULT         dict['default'] = row[2]
+
+        cursor.execute("""
+            SELECT constraint_name, constraint_type, column_name 
+            FROM information_schema.table_constraints 
+            INNER JOIN information_schema.constraint_column_usage u USING (constraint_name) 
+            WHERE u.table_name = %s AND u.column_name = %s 
+            AND NOT (constraint_type = 'UNIQUE' AND 1<(SELECT count(*) 
+                    FROM information_schema.constraint_column_usage 
+                    WHERE constraint_name = u.constraint_name))
+            """, [table_name,column_name])
+        for row in cursor.fetchall():
+            if row[1]=='PRIMARY KEY': dict['primary_key'] = True
+            if row[1]=='FOREIGN KEY': dict['foreign_key'] = True
+            if row[1]=='UNIQUE': dict['unique']= True
+        return dict
+    
+    def get_known_column_flags_compare( self, cursor, table_name, column_name ):
+        gcfold = self.get_known_column_flags_old(cursor, table_name, column_name)
+        gcfnew = self.get_known_column_flags_new(cursor, table_name, column_name)
+        d1 = [i for i in dict.items() if not i in gcfnew.items()]
+        d2 = [i for i in gcfnew.items() if not i in dict.items()]
+        if d1 or d2:
+            print 'Diff!', d1, '<->', d2
+        return gcfold
+            
     def get_known_column_flags( self, cursor, table_name, column_name ):
     #    print "SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name
-        from django.db.models.fields import NOT_PROVIDED
         cursor.execute("SELECT a.attname, pg_catalog.format_type(a.atttypid, a.atttypmod), (SELECT substring(d.adsrc for 128) FROM pg_catalog.pg_attrdef d WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef), a.attnotnull, a.attnum, pg_catalog.col_description(a.attrelid, a.attnum) FROM pg_catalog.pg_attribute a WHERE a.attrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$') AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name)
-        dict = {}
-        dict['primary_key'] = False
-        dict['foreign_key'] = False
-        dict['unique'] = False
-        dict['allow_null'] = False
+        dict = {
+            'primary_key': False,
+            'foreign_key': False,
+            'unique': False,
+            'allow_null': False,
+            'max_length': None
+        }
     
         for row in cursor.fetchall():
             if row[0] == column_name:
-                # maxlength check goes here
+        # maxlength check goes here
+                dict['allow_null'] = not row[3]
+                dict['coltype'] = row[1]
                 if row[1][0:17]=='character varying':
-                    dict['max_length'] = row[1][18:len(row[1])-1]
+                    dict['max_length'] = str(row[1][18:len(row[1])-1])
                     dict['coltype'] = 'varchar'
                 elif row[1][0:4]=='text':
-                    dict['max_length'] = 64000
-                    dict['coltype'] = 'text'
-                else:
-                    dict['max_length'] = ''
-                    dict['coltype'] = row[1]
+                    dict['max_length'] = 1000000000
                 # null flag check goes here
-                dict['allow_null'] = not row[3]
-    
+                
         # pk, fk and unique checks go here
     #    print "select pg_constraint.conname, pg_constraint.contype, pg_attribute.attname from pg_constraint, pg_attribute where pg_constraint.conrelid=pg_attribute.attrelid and pg_attribute.attnum=any(pg_constraint.conkey) and pg_constraint.conname~'^%s'" % table_name 
         unique_conname = None
@@ -237,10 +299,10 @@ class DatabaseIntrospection:
         #print 'cursor.fetchall()', cursor.fetchall()
         cursor.execute("select pg_attribute.attname, adsrc from pg_attrdef, pg_attribute WHERE pg_attrdef.adrelid=pg_attribute.attrelid and pg_attribute.attnum=pg_attrdef.adnum and pg_attrdef.adrelid = (SELECT c.oid from pg_catalog.pg_class c where c.relname ~ '^%s$')" % table_name )
         for row in cursor.fetchall():
-            #print column_name, row
             if row[0] == column_name:
                 if row[1][0:7] == 'nextval': 
                     if row[1].startswith("nextval('") and row[1].endswith("'::regclass)"):
                         dict['sequence'] = row[1][9:-12]
                     continue
+
         return dict

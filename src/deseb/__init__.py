@@ -13,8 +13,12 @@ added_aka_support = False
 
 def db_type(self):
     from django.db import get_creation_module
+    from django.db.models.fields.related import ForeignKey
     data_types = get_creation_module().DATA_TYPES
     internal_type = self.get_internal_type()
+    if internal_type in ['ForeignKey']:
+        return db_type(self.rel.to._meta.pk)
+    assert internal_type in data_types.keys(), "No such django type. Please send this error to maintainer."
     return data_types.get(internal_type,'') % self.__dict__
 
 def add_aka_support():
