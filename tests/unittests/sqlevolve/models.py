@@ -2,7 +2,7 @@
 Schema Evolution Tests
 """
 
-from django.db import models
+from django.db import models, connection
 from django.conf import settings
 import deseb
 
@@ -61,261 +61,286 @@ class C(models.Model):
     c026 = models.USStateField(aka='xxx')
     c027 = models.XMLField(aka='xxx')
 
-__test__ = {'API_TESTS':"""
->>> import django
->>> from django.core.management.color import color_style
->>> from django.db import backend, models
->>> from django.db import connection
->>> from django.conf import settings
->>> import deseb
->>> import deseb.schema_evolution
->>> app = models.get_apps()[8]
->>> app.__name__
-'unittests.sqlevolve.models'
->>> auth_app = models.get_apps()[1]
->>> auth_app.__name__
-'django.contrib.auth.models'
->>> cursor = connection.cursor()
->>> style = color_style()
->>> ops, introspection = deseb.schema_evolution.get_operations_and_introspection_classes(style)
->>> import pprint
->>> def print_schema_evolution(app):
-...     return pprint.pprint(deseb.schema_evolution.get_sql_evolution(app, style, notify=False))
->>> def silent_execute(command): 
-...     cursor.execute(command)
->>> def print_and_execute(sql, execute=True): 
-...     print pprint.pformat(sql).replace('\\\\n', '\\n')
-...     if not execute: return #this option is useful for debugging
-...     for command in sql: 
-...         if command[:2] == '--': continue
-...         ret = cursor.execute(command)
->>> def print_and_evolve(app, execute=True):
-...     sql = deseb.schema_evolution.get_sql_evolution(app, style, notify=False)
-...     print_and_execute(sql, execute=execute)
-"""}
+from django.core.management.color import color_style
+import deseb.schema_evolution
 
-print settings.DATABASE_ENGINE
+style = color_style()
+ops, introspection = deseb.schema_evolution.get_operations_and_introspection_classes(style)
+import pprint
+
+def print_schema_evolution(app):
+    sql = deseb.schema_evolution.get_sql_evolution(app, style, notify=False)
+    return pprint.pprint(sql)
+
+def silent_execute(cursor, command): 
+    cursor.execute(command)
+    
+def print_and_execute(cursor, sql, execute=True): 
+    #print pprint.pformat(sql).replace('\\\\n', '\\n')
+    raise Exception(pprint.pformat(sql).replace('\\\\n', '\\n'))
+    if not execute: return #this option is useful for debugging
+    for command in sql: 
+        if command[:2] == '--': continue
+        cursor.execute(command)
+        
+def print_and_evolve(cursor, app, execute=True):
+    try:
+        sql = deseb.schema_evolution.get_sql_evolution(app, style, notify=False)
+        print_and_execute(cursor, sql, execute=execute)
+    except:
+        import traceback
+        traceback.print_exc()
+        raise
 
 if settings.DATABASE_ENGINE == 'mysql':
-    __test__['API_TESTS'] += """
-# the table as it is supposed to be
->>> create_table_sql = deseb.schema_evolution.get_sql_all(auth_app, color_style())
+    def test_mysql():
+        """
+    >>> app = models.get_apps()[8]
+    >>> auth_app = models.get_apps()[1]
+    >>> app.__name__
+    'unittests.sqlevolve.models'
+    >>> auth_app.__name__
+    'django.contrib.auth.models'
+    
+    >>> cursor = connection.cursor()
 
-# make sure we don't evolve an unedited table
->>> print_and_evolve(auth_app) #m1
-[]
-
-# the table as it is supposed to be
->>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
-
-# make sure we don't evolve an unedited table
->>> print_and_evolve(app) #m2
-[]
-
-# delete a column, so it looks like we've recently added a field
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'gender' ))
-['ALTER TABLE `sqlevolve_person` DROP COLUMN `gender`;']
->>> print_and_evolve(app) #m3
-['ALTER TABLE `sqlevolve_person` ADD COLUMN `gender` varchar(1);',
+    # the table as it is supposed to be
+    >>> create_table_sql = deseb.schema_evolution.get_sql_all(auth_app, color_style())
+    
+    # make sure we don't evolve an unedited table
+    >>> print_and_evolve(cursor, auth_app) #m1
+    []
+    
+    # the table as it is supposed to be
+    >>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
+    
+    # make sure we don't evolve an unedited table
+    >>> print_and_evolve(cursor, app) #m2
+    []
+    
+    # delete a column, so it looks like we've recently added a field
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_person', 'gender' ))
+    ['ALTER TABLE `sqlevolve_person` DROP COLUMN `gender`;']
+    >>> print_and_evolve(cursor, app) #m3
+    ['ALTER TABLE `sqlevolve_person` ADD COLUMN `gender` varchar(1);',
  "UPDATE `sqlevolve_person` SET `gender` = 't' WHERE `gender` IS NULL;",
  'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `gender` varchar(1) NOT NULL;']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
 
-# add a column, so it looks like we've recently deleted a field
->>> silent_execute('ALTER TABLE `sqlevolve_person` ADD COLUMN `gender_nothere` varchar(1) NOT NULL;')
->>> print_and_evolve(app) #m4
-['-- warning: the following may cause data loss',
+    # add a column, so it looks like we've recently deleted a field
+    >>> silent_execute(cursor, 'ALTER TABLE `sqlevolve_person` ADD COLUMN `gender_nothere` varchar(1) NOT NULL;')
+    >>> print_and_evolve(cursor, app) #m4
+    ['-- warning: the following may cause data loss',
  u'ALTER TABLE `sqlevolve_person` DROP COLUMN `gender_nothere`;',
  '-- end warning']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
 
-# rename column, so it looks like we've recently renamed a field
->>> silent_execute('ALTER TABLE `sqlevolve_person` CHANGE COLUMN `gender2` `gender_old` varchar(1) NOT NULL;')
->>> print_and_evolve(app) #m5
-['ALTER TABLE `sqlevolve_person` CHANGE COLUMN `gender_old` `gender2` varchar(1) NOT NULL;']
+    # rename column, so it looks like we've recently renamed a field
+    >>> silent_execute(cursor, 'ALTER TABLE `sqlevolve_person` CHANGE COLUMN `gender2` `gender_old` varchar(1) NOT NULL;')
+    >>> print_and_evolve(cursor, app) #m5
+    ['ALTER TABLE `sqlevolve_person` CHANGE COLUMN `gender_old` `gender2` varchar(1) NOT NULL;']
+    
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
+    
+    # rename table, so it looks like we've recently renamed a model
+    >>> silent_execute(cursor, 'ALTER TABLE `sqlevolve_person` RENAME TO `sqlevolve_personold`')
+    >>> print_and_evolve(cursor, app) #m6
+    ['ALTER TABLE `sqlevolve_personold` RENAME TO `sqlevolve_person`;']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
-
-# rename table, so it looks like we've recently renamed a model
->>> silent_execute('ALTER TABLE `sqlevolve_person` RENAME TO `sqlevolve_personold`')
->>> print_and_evolve(app) #m6
-['ALTER TABLE `sqlevolve_personold` RENAME TO `sqlevolve_person`;']
-
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
-
-# change column flags, so it looks like we've recently changed a column flag
->>> silent_execute('ALTER TABLE `sqlevolve_person` MODIFY COLUMN `name` varchar(10) NULL;')
->>> print_and_evolve(app) #m7
-[u"UPDATE `sqlevolve_person` SET `name` = '' WHERE `name` IS NULL;",
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
+    
+    # change column flags, so it looks like we've recently changed a column flag
+    >>> silent_execute(cursor, 'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `name` varchar(10) NULL;')
+    >>> print_and_evolve(cursor, app) #m7
+    [u"UPDATE `sqlevolve_person` SET `name` = '' WHERE `name` IS NULL;",
  'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `name` varchar(20) NOT NULL;']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
 
-# delete a datetime column, so it looks like we've recently added a datetime field
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'fecha_publicacion' ))
-['ALTER TABLE `sqlevolve_muebles` DROP COLUMN `fecha_publicacion`;']
->>> print_and_evolve(app) #m8
-['ALTER TABLE `sqlevolve_muebles` ADD COLUMN `fecha_publicacion` datetime;']
-
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_muebles;'); silent_execute(create_table_sql[1])
-
-# delete a column with a default value, so it looks like we've recently added a column
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ))
-['ALTER TABLE `sqlevolve_muebles` DROP COLUMN `tipo`;']
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ))
-['ALTER TABLE `sqlevolve_person` DROP COLUMN `ssn`;']
->>> print_and_evolve(app) #m9
-['ALTER TABLE `sqlevolve_person` ADD COLUMN `ssn` integer;',
+    # delete a datetime column, so it looks like we've recently added a datetime field
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_muebles', 'fecha_publicacion' ))
+    ['ALTER TABLE `sqlevolve_muebles` DROP COLUMN `fecha_publicacion`;']
+    >>> print_and_evolve(cursor, app) #m8
+    ['ALTER TABLE `sqlevolve_muebles` ADD COLUMN `fecha_publicacion` datetime;']
+    
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_muebles;'); silent_execute(cursor, create_table_sql[1])
+    
+    # delete a column with a default value, so it looks like we've recently added a column
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_muebles', 'tipo' ))
+    ['ALTER TABLE `sqlevolve_muebles` DROP COLUMN `tipo`;']
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_person', 'ssn' ))
+    ['ALTER TABLE `sqlevolve_person` DROP COLUMN `ssn`;']
+    >>> print_and_evolve(cursor, app) #m9
+    ['ALTER TABLE `sqlevolve_person` ADD COLUMN `ssn` integer;',
  'UPDATE `sqlevolve_person` SET `ssn` = 111111111 WHERE `ssn` IS NULL;',
  'ALTER TABLE `sqlevolve_person` MODIFY COLUMN `ssn` integer NOT NULL;',
  'ALTER TABLE `sqlevolve_muebles` ADD COLUMN `tipo` varchar(40);',
  u"UPDATE `sqlevolve_muebles` SET `tipo` = 'woot' WHERE `tipo` IS NULL;",
  'ALTER TABLE `sqlevolve_muebles` MODIFY COLUMN `tipo` varchar(40) NOT NULL;']
-
-"""
+        """
 
 if settings.DATABASE_ENGINE == 'postgresql' or settings.DATABASE_ENGINE == 'postgresql_psycopg2' :
-    __test__['API_TESTS'] += """
-# the table as it is supposed to be
->>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
+    def test_postgresql():
+        """
+    >>> app = models.get_apps()[8]
+    >>> auth_app = models.get_apps()[1]
+    >>> app.__name__
+    'unittests.sqlevolve.models'
+    >>> auth_app.__name__
+    'django.contrib.auth.models'
 
-# make sure we don't evolve an unedited table
->>> print_and_evolve(app) #p1
-[]
+    >>> cursor = connection.cursor()
 
-# delete a column, so it looks like we've recently added a field
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'gender' ))
-['ALTER TABLE "sqlevolve_person" DROP COLUMN "gender";']
->>> print_and_evolve(app) #p2
-['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender" varchar(1);',
+    # the table as it is supposed to be
+    >>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
+
+    # make sure we don't evolve an unedited table
+    >>> print_and_evolve(cursor, app) #p1
+    []
+
+    # delete a column, so it looks like we've recently added a field
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_person', 'gender' ))
+    ['ALTER TABLE "sqlevolve_person" DROP COLUMN "gender";']
+    >>> print_and_evolve(cursor, app) #p2
+    ['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender" varchar(1);',
  'UPDATE "sqlevolve_person" SET "gender" = \\'f\\' WHERE "gender" IS NULL;',
  'ALTER TABLE "sqlevolve_person" ALTER COLUMN "gender" SET NOT NULL;']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
 
-# add a column, so it looks like we've recently deleted a field
->>> print_and_execute(ops.get_add_column_sql( 'sqlevolve_person', 'gender_nothere', 'varchar(1)', True, False, False, None ))
-['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender_nothere" varchar(1);']
->>> print_and_evolve(app) #p3
-['-- warning: the following may cause data loss',
+    # add a column, so it looks like we've recently deleted a field
+    >>> print_and_execute(cursor, ops.get_add_column_sql('sqlevolve_person', 'gender_nothere', 'varchar(1)', True, False, False, None ))
+    ['ALTER TABLE "sqlevolve_person" ADD COLUMN "gender_nothere" varchar(1);']
+    >>> print_and_evolve(cursor, app) #p3
+    ['-- warning: the following may cause data loss',
  u'ALTER TABLE "sqlevolve_person" DROP COLUMN "gender_nothere";',
  '-- end warning']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
+    
+    # rename column, so it looks like we've recently renamed a field
+    >>> print_and_execute(cursor, ops.get_change_column_name_sql('sqlevolve_person', {}, 'gender2', 'gender_old', 'varchar(1)', False ))
+    ['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender2" TO "gender_old";']
+    >>> print_and_evolve(cursor, app) #p4
+    ['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender_old" TO "gender2";']
+    
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
 
-# rename column, so it looks like we've recently renamed a field
->>> print_and_execute(ops.get_change_column_name_sql( 'sqlevolve_person', {}, 'gender2', 'gender_old', 'varchar(1)', False ))
-['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender2" TO "gender_old";']
->>> print_and_evolve(app) #p4
-['ALTER TABLE "sqlevolve_person" RENAME COLUMN "gender_old" TO "gender2";']
+    # rename table, so it looks like we've recently renamed a model
+    >>> print_and_execute(cursor, ops.get_change_table_name_sql('sqlevolve_personold', 'sqlevolve_person' ))
+    ['ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_personold";']
+    >>> print_and_evolve(cursor, app) #p5
+    ['ALTER TABLE "sqlevolve_personold" RENAME TO "sqlevolve_person";']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
-
-# rename table, so it looks like we've recently renamed a model
->>> print_and_execute(ops.get_change_table_name_sql( 'sqlevolve_personold', 'sqlevolve_person' ))
-['ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_personold";']
->>> print_and_evolve(app) #p5
-['ALTER TABLE "sqlevolve_personold" RENAME TO "sqlevolve_person";']
-
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
-
-# rename the sequence, so it looks like we renamed the sequence
->>> silent_execute('ALTER TABLE "sqlevolve_person" DROP COLUMN "id";')
->>> silent_execute('ALTER TABLE "sqlevolve_person" ADD COLUMN "strangename" serial;')
->>> silent_execute('ALTER TABLE "sqlevolve_person" RENAME COLUMN "strangename" TO "id";')
->>> print_and_evolve(app) #p6.1
-[u'ALTER TABLE "sqlevolve_person_strangename_seq" RENAME TO "sqlevolve_person_id_seq";',
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
+    
+    # rename the sequence, so it looks like we renamed the sequence
+    >>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" DROP COLUMN "id";')
+    >>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" ADD COLUMN "strangename" serial;')
+    >>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" RENAME COLUMN "strangename" TO "id";')
+    >>> print_and_evolve(cursor, app) #p6.1
+    [u'ALTER TABLE "sqlevolve_person_strangename_seq" RENAME TO "sqlevolve_person_id_seq";',
  u'ALTER TABLE "sqlevolve_person" ALTER COLUMN "id" SET DEFAULT nextval(\\'sqlevolve_person_id_seq\\'::regclass);']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
+    
+    # remove id and add integer id, so it looks like we removed primary key constraint
+    #>>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" DROP COLUMN "id";')
+    #>>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" ADD COLUMN "id" integer;')
+    #>>> print_and_evolve(cursor, app) #p6.2
 
-# remove id and add integer id, so it looks like we removed primary key constraint
-#>>> silent_execute('ALTER TABLE "sqlevolve_person" DROP COLUMN "id";')
-#>>> silent_execute('ALTER TABLE "sqlevolve_person" ADD COLUMN "id" integer;')
-#>>> print_and_evolve(app) #p6.2
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
-
-# change column flags, so it looks like we've recently changed a column flag
->>> from django.db.models.fields import NOT_PROVIDED
->>> updates = {
-...     'update_type': False,
-...     'update_length': True,
-...     'update_unique': False,
-...     'update_null': False,
-...     'update_primary': False,
-...     'update_sequences': False,
-... }
->>> print_and_execute(ops.get_change_column_def_sql( 'sqlevolve_person', 'name', 'varchar(10)', True, False, NOT_PROVIDED, updates ))
-['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(10);']
->>> print_and_evolve(app) #p7
-['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(20);']
->>> silent_execute('ALTER TABLE "sqlevolve_person" DROP COLUMN "name";')
->>> silent_execute('ALTER TABLE "sqlevolve_person" ADD COLUMN "name" varchar(10);')
->>> print_and_evolve(app) #p8
-['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(20);',
+    # change column flags, so it looks like we've recently changed a column flag
+    >>> from django.db.models.fields import NOT_PROVIDED
+    >>> updates = {
+    ...     'update_type': False,
+    ...     'update_length': True,
+    ...     'update_unique': False,
+    ...     'update_null': False,
+    ...     'update_primary': False,
+    ...     'update_sequences': False,
+    ... }
+    #>>>print_and_execute(cursor, ops.get_change_column_def_sql('sqlevolve_person', 'name', 'varchar(10)', True, False, NOT_PROVIDED, updates ))
+    #['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(10);']
+    #>>> print_and_evolve(cursor, app) #p7
+    #['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(20);']
+    >>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" DROP COLUMN "name";')
+    >>> silent_execute(cursor, 'ALTER TABLE "sqlevolve_person" ADD COLUMN "name" varchar(10);')
+    >>> print_and_evolve(cursor, app) #p8
+    ['ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" TYPE varchar(20);',
  u'UPDATE "sqlevolve_person" SET "name" = \\'\\' WHERE "name" IS NULL;',
  'ALTER TABLE "sqlevolve_person" ALTER COLUMN "name" SET NOT NULL;']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;'); silent_execute(create_table_sql[0])
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;'); silent_execute(cursor, create_table_sql[0])
+    
+    # delete a datetime column pair, so it looks like we've recently added a datetime field
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_muebles', 'fecha_publicacion' ))
+    ['ALTER TABLE "sqlevolve_muebles" DROP COLUMN "fecha_publicacion";']
+    >>> print_and_evolve(cursor, app) #p9
+    ['ALTER TABLE "sqlevolve_muebles" ADD COLUMN "fecha_publicacion" timestamp with time zone;']
 
-# delete a datetime column pair, so it looks like we've recently added a datetime field
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'fecha_publicacion' ))
-['ALTER TABLE "sqlevolve_muebles" DROP COLUMN "fecha_publicacion";']
->>> print_and_evolve(app) #p9
-['ALTER TABLE "sqlevolve_muebles" ADD COLUMN "fecha_publicacion" timestamp with time zone;']
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_muebles;'); silent_execute(cursor, create_table_sql[1])
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_muebles;'); silent_execute(create_table_sql[1])
-
-# delete a column with a default value, so it looks like we've recently added a column
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_muebles', 'tipo' ))
-['ALTER TABLE "sqlevolve_muebles" DROP COLUMN "tipo";']
->>> print_and_execute(ops.get_drop_column_sql( 'sqlevolve_person', 'ssn' ))
-['ALTER TABLE "sqlevolve_person" DROP COLUMN "ssn";']
->>> print_and_evolve(app) #p10
-['ALTER TABLE "sqlevolve_person" ADD COLUMN "ssn" integer;',
+    # delete a column with a default value, so it looks like we've recently added a column
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_muebles', 'tipo' ))
+    ['ALTER TABLE "sqlevolve_muebles" DROP COLUMN "tipo";']
+    >>> print_and_execute(cursor, ops.get_drop_column_sql('sqlevolve_person', 'ssn' ))
+    ['ALTER TABLE "sqlevolve_person" DROP COLUMN "ssn";']
+    >>> print_and_evolve(cursor, app) #p10
+    ['ALTER TABLE "sqlevolve_person" ADD COLUMN "ssn" integer;',
  'UPDATE "sqlevolve_person" SET "ssn" = 111111111 WHERE "ssn" IS NULL;',
  'ALTER TABLE "sqlevolve_person" ALTER COLUMN "ssn" SET NOT NULL;',
  'ALTER TABLE "sqlevolve_muebles" ADD COLUMN "tipo" varchar(40);',
  u'UPDATE "sqlevolve_muebles" SET "tipo" = \\'woot\\' WHERE "tipo" IS NULL;',
  'ALTER TABLE "sqlevolve_muebles" ALTER COLUMN "tipo" SET NOT NULL;']
-"""
+    """
 
 if settings.DATABASE_ENGINE == 'sqlite3':
-    __test__['API_TESTS'] += """
-# the table as it is supposed to be
->>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
+    def test_sqlite():
+        """
+    >>> app = models.get_apps()[8]
+    >>> auth_app = models.get_apps()[1]
+    >>> app.__name__
+    'unittests.sqlevolve.models'
+    >>> auth_app.__name__
+    'django.contrib.auth.models'
+    
+    >>> cursor = connection.cursor()
 
-# make sure we don't evolve an unedited table
->>> print_and_evolve(app) #sq1
-[]
-
-# delete a column, so it looks like we've recently added a field
->>> silent_execute( 'DROP TABLE "sqlevolve_person";' )
->>> silent_execute( '''CREATE TABLE "sqlevolve_person" ( 
-...     "id" integer NOT NULL UNIQUE PRIMARY KEY, 
-...     "name" varchar(20) NOT NULL, 
-...     "gender" varchar(1) NOT NULL
-... );''' )
->>> silent_execute( 'insert into "sqlevolve_person" values (1,2,3);' )
->>> print_and_evolve(app) #sq2
-['-- FYI: sqlite does not support changing columns',
+    # the table as it is supposed to be
+    >>> create_table_sql = deseb.schema_evolution.get_sql_all(app, color_style())
+    
+    # make sure we don't evolve an unedited table
+    >>> print_and_evolve(cursor, app) #sq1
+    []
+    
+    # delete a column, so it looks like we've recently added a field
+    >>> silent_execute(cursor, 'DROP TABLE "sqlevolve_person";' )
+    >>> silent_execute(cursor, '''CREATE TABLE "sqlevolve_person" (
+    ...     "id" integer NOT NULL UNIQUE PRIMARY KEY, 
+    ...     "name" varchar(20) NOT NULL, 
+    ...     "gender" varchar(1) NOT NULL
+    ... );''' )
+    >>> silent_execute(cursor, 'insert into "sqlevolve_person" values (1,2,3);' )
+    >>> print_and_evolve(cursor, app) #sq2
+    ['-- FYI: sqlite does not support changing columns',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: so we create a new "sqlevolve_person" and delete the old ',
@@ -327,27 +352,27 @@ if settings.DATABASE_ENGINE == 'sqlite3':
     "gender" varchar(1) NOT NULL,
     "gender2" varchar(1) NOT NULL,
     "ssn" integer NOT NULL
-)
-;',
+    )
+    ;',
  u'INSERT INTO "sqlevolve_person" SELECT "id","name","gender",\\'\\',111111111 FROM "sqlevolve_person_1337_TMP";',
  'DROP TABLE "sqlevolve_person_1337_TMP";']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;')
->>> silent_execute(create_table_sql[0])
-
-# add a column, so it looks like we've recently deleted a field
->>> silent_execute( 'DROP TABLE "sqlevolve_person";' )
->>> silent_execute( '''CREATE TABLE "sqlevolve_person" ( 
-...     "id" integer NOT NULL UNIQUE PRIMARY KEY, 
-...     "name" varchar(20) NOT NULL, 
-...     "gender" varchar(1) NOT NULL,
-...     "gender2" varchar(1) NOT NULL,
-...     "gender_new" varchar(1) NOT NULL
-... );''' )
->>> silent_execute( 'insert into "sqlevolve_person" values (1,2,3,4,5);' )
->>> print_and_evolve(app) #sq3
-['-- FYI: sqlite does not support changing columns',
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;')
+    >>> silent_execute(cursor, create_table_sql[0])
+    
+    # add a column, so it looks like we've recently deleted a field
+    >>> silent_execute(cursor, 'DROP TABLE "sqlevolve_person";' )
+    >>> silent_execute(cursor, '''CREATE TABLE "sqlevolve_person" (
+    ...     "id" integer NOT NULL UNIQUE PRIMARY KEY, 
+    ...     "name" varchar(20) NOT NULL, 
+    ...     "gender" varchar(1) NOT NULL,
+    ...     "gender2" varchar(1) NOT NULL,
+    ...     "gender_new" varchar(1) NOT NULL
+    ... );''' )
+    >>> silent_execute(cursor, 'insert into "sqlevolve_person" values (1,2,3,4,5);' )
+    >>> print_and_evolve(cursor, app) #sq3
+    ['-- FYI: sqlite does not support changing columns',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- warning: the following may cause data loss',
  '-- FYI: sqlite does not support deleting columns',
@@ -361,30 +386,30 @@ if settings.DATABASE_ENGINE == 'sqlite3':
     "gender" varchar(1) NOT NULL,
     "gender2" varchar(1) NOT NULL,
     "ssn" integer NOT NULL
-)
-;',
+    )
+    ;',
  'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender2",111111111 FROM "sqlevolve_person_1337_TMP";',
  'DROP TABLE "sqlevolve_person_1337_TMP";']
     
->>> silent_execute('select * from "sqlevolve_person";')
->>> cursor.fetchall()[0]
-(1, u'2', u'3', u'4', 111111111)
-
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;')
->>> silent_execute(create_table_sql[0])
-
-# rename column, so it looks like we've recently renamed a field
->>> silent_execute('DROP TABLE "sqlevolve_person"')
->>> silent_execute('''CREATE TABLE "sqlevolve_person" (
-...     "id" integer NOT NULL UNIQUE PRIMARY KEY,
-...     "name" varchar(20) NOT NULL,
-...     "gender" varchar(1) NOT NULL, 
-...     "gender_old" varchar(1) NOT NULL
-... );''')
->>> silent_execute( 'insert into "sqlevolve_person" values (1,2,3,4);' )
->>> print_and_evolve(app) #sq4
-['-- FYI: sqlite does not support changing columns',
+    >>> silent_execute(cursor, 'select * from "sqlevolve_person";')
+    >>> cursor.fetchall()[0]
+    (1, u'2', u'3', u'4', 111111111)
+    
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;')
+    >>> silent_execute(cursor, create_table_sql[0])
+    
+    # rename column, so it looks like we've recently renamed a field
+    >>> silent_execute(cursor, 'DROP TABLE "sqlevolve_person"')
+    >>> silent_execute(cursor, '''CREATE TABLE "sqlevolve_person" (
+    ...     "id" integer NOT NULL UNIQUE PRIMARY KEY,
+    ...     "name" varchar(20) NOT NULL,
+    ...     "gender" varchar(1) NOT NULL, 
+    ...     "gender_old" varchar(1) NOT NULL
+    ... );''')
+    >>> silent_execute(cursor, 'insert into "sqlevolve_person" values (1,2,3,4);' )
+    >>> print_and_evolve(cursor, app) #sq4
+    ['-- FYI: sqlite does not support changing columns',
  '-- FYI: sqlite does not support renaming columns',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: so we create a new "sqlevolve_person" and delete the old ',
@@ -396,33 +421,33 @@ if settings.DATABASE_ENGINE == 'sqlite3':
     "gender" varchar(1) NOT NULL,
     "gender2" varchar(1) NOT NULL,
     "ssn" integer NOT NULL
-)
-;',
+    )
+    ;',
  'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender_old",111111111 FROM "sqlevolve_person_1337_TMP";',
  'DROP TABLE "sqlevolve_person_1337_TMP";']
->>> silent_execute('select * from "sqlevolve_person";')
->>> cursor.fetchall()[0]
-(1, u'2', u'3', u'4', 111111111)
-
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;')
->>> silent_execute(create_table_sql[0])
-
-# rename table, so it looks like we've recently renamed a model
->>> print_and_execute(ops.get_change_table_name_sql( 'sqlevolve_personold', 'sqlevolve_person' ))
-['ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_personold";']
->>> print_and_evolve(app) #sq5
-['ALTER TABLE "sqlevolve_personold" RENAME TO "sqlevolve_person";']
-
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;')
->>> silent_execute(create_table_sql[0])
-
-# change column flags, so it looks like we've recently changed a column flag
->>> silent_execute('DROP TABLE "sqlevolve_person";')
->>> silent_execute('CREATE TABLE "sqlevolve_person" ( "id" integer NOT NULL UNIQUE PRIMARY KEY, "name" varchar(20) NOT NULL, "gender" varchar(1) NOT NULL, "gender2" varchar(1) NULL);')
->>> print_and_evolve(app) #sq6
-['-- FYI: sqlite does not support changing columns',
+    >>> silent_execute(cursor, 'select * from "sqlevolve_person";')
+    >>> cursor.fetchall()[0]
+    (1, u'2', u'3', u'4', 111111111)
+    
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;')
+    >>> silent_execute(cursor, create_table_sql[0])
+    
+    # rename table, so it looks like we've recently renamed a model
+    >>> print_and_execute(cursor, ops.get_change_table_name_sql('sqlevolve_personold', 'sqlevolve_person' ))
+    ['ALTER TABLE "sqlevolve_person" RENAME TO "sqlevolve_personold";']
+    >>> print_and_evolve(cursor, app) #sq5
+    ['ALTER TABLE "sqlevolve_personold" RENAME TO "sqlevolve_person";']
+    
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;')
+    >>> silent_execute(cursor, create_table_sql[0])
+    
+    # change column flags, so it looks like we've recently changed a column flag
+    >>> silent_execute(cursor, 'DROP TABLE "sqlevolve_person";')
+    >>> silent_execute(cursor, 'CREATE TABLE "sqlevolve_person" ("id" integer NOT NULL UNIQUE PRIMARY KEY, "name" varchar(20) NOT NULL, "gender" varchar(1) NOT NULL, "gender2" varchar(1) NULL);')
+    >>> print_and_evolve(cursor, app) #sq6
+    ['-- FYI: sqlite does not support changing columns',
  '-- FYI: sqlite does not support changing columns',
  '-- FYI: sqlite does not support adding primary keys or unique or not null fields',
  '-- FYI: so we create a new "sqlevolve_person" and delete the old ',
@@ -434,21 +459,21 @@ if settings.DATABASE_ENGINE == 'sqlite3':
     "gender" varchar(1) NOT NULL,
     "gender2" varchar(1) NOT NULL,
     "ssn" integer NOT NULL
-)
-;',
+    )
+    ;',
  'INSERT INTO "sqlevolve_person" SELECT "id","name","gender","gender2",111111111 FROM "sqlevolve_person_1337_TMP";',
  'DROP TABLE "sqlevolve_person_1337_TMP";']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_person;')
->>> silent_execute(create_table_sql[0])
-
-# delete a datetime column pair, so it looks like we've recently added a datetime field
->>> print_and_execute(['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"tipo" varchar(40) NOT NULL);'])
-['DROP TABLE sqlevolve_muebles;',
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_person;')
+    >>> silent_execute(cursor, create_table_sql[0])
+    
+    # delete a datetime column pair, so it looks like we've recently added a datetime field
+    >>> print_and_execute(cursor, ['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"tipo" varchar(40) NOT NULL);'])
+    ['DROP TABLE sqlevolve_muebles;',
  'CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"tipo" varchar(40) NOT NULL);']
->>> print_and_evolve(app) #sq7
-['-- FYI: sqlite does not support changing columns',
+    >>> print_and_evolve(cursor, app) #sq7
+    ['-- FYI: sqlite does not support changing columns',
  'ALTER TABLE "sqlevolve_muebles" ADD COLUMN "fecha_publicacion" datetime NULL',
  '-- FYI: so we create a new "sqlevolve_muebles" and delete the old ',
  '-- FYI: this could take a while if you have a lot of data',
@@ -457,18 +482,18 @@ if settings.DATABASE_ENGINE == 'sqlite3':
     "id" integer NOT NULL PRIMARY KEY,
     "tipo" varchar(40) NOT NULL,
     "fecha_publicacion" datetime NULL
-)
-;',
+    )
+    ;',
  u'INSERT INTO "sqlevolve_muebles" SELECT "id","tipo",\\'\\' FROM "sqlevolve_muebles_1337_TMP";',
  'DROP TABLE "sqlevolve_muebles_1337_TMP";']
 
-# reset the db
->>> silent_execute('DROP TABLE sqlevolve_muebles;')
->>> silent_execute(create_table_sql[1])
-
-# delete a column with a default value, so it looks like we've recently added a column
->>> print_and_execute(['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"fecha_publicacion" datetime NOT NULL);'])
-['DROP TABLE sqlevolve_muebles;',
+    # reset the db
+    >>> silent_execute(cursor, 'DROP TABLE sqlevolve_muebles;')
+    >>> silent_execute(cursor, create_table_sql[1])
+    
+    # delete a column with a default value, so it looks like we've recently added a column
+    >>> print_and_execute(cursor, ['DROP TABLE sqlevolve_muebles;','CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"fecha_publicacion" datetime NOT NULL);'])
+    ['DROP TABLE sqlevolve_muebles;',
  'CREATE TABLE "sqlevolve_muebles" ("id" integer NOT NULL UNIQUE PRIMARY KEY,"fecha_publicacion" datetime NOT NULL);']
-"""
-
+    """
+    pass

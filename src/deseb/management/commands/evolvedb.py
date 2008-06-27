@@ -11,7 +11,7 @@ class Command(AppCommand):
             help='Don\'t save evolution to schema_evolution.py near to models.py.'),
         make_option('--managed-upgrades-only', action='store_true', dest='managed_upgrade_only', default=False,
             help='Only use upgrades found in app_name/schema_evolution.py (recommended for deployments)'),
-    )
+   )
     help = """Interactively runs the SQL statements to non-destructively 
 bring your schema into compliance with your models.
 See: http://code.google.com/p/deseb/wiki/Usage"""
@@ -19,7 +19,6 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
     output_transaction = True
 
     def handle(self, *app_labels, **options):
-        from django.db import connection
         from django.db.models.loading import get_apps 
         all_apps = get_apps()
         run_apps = []
@@ -32,8 +31,6 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
         else:
             run_apps = all_apps
             
-        cursor = connection.cursor()
-
         for app in run_apps:
             if app.__name__.startswith('django'): continue
             self.handle_app(app, **options)

@@ -8,7 +8,7 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
     option_list = AppCommand.option_list + (
         make_option('--dont-notify', action='store_false', dest='do_notify', default=True,
             help='Don\'t save evolution to schema_evolution.py near to models.py.'),
-    )
+   )
 
     output_transaction = True
 

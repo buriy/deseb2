@@ -3,6 +3,12 @@
 import os, sys, traceback
 import unittest
 
+DIR = os.path.dirname(os.path.abspath(__file__))                                                                        
+SRC = os.path.dirname(DIR)+"/src"                                                                                       
+sys.path.append(DIR)                                                                                                    
+sys.path.append(SRC)                                                                                                    
+os.environ['PYTHONPATH'] = SRC                                                                                          
+
 import django.contrib as contrib
 
 try:

@@ -1,9 +1,12 @@
-import deseb.schema_evolution
+from deseb.dbmodel import DBField
+from deseb.dbmodel import DBSchema
+from deseb.dbmodel import DBTable
+import deseb.actions
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
-model_create = deseb.schema_evolution.fixed_sql_model_create
+model_create = deseb.actions.fixed_sql_model_create
 
 class DatabaseOperations:
     def quote_value(self, s):
@@ -36,15 +39,17 @@ class DatabaseOperations:
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
-        model = self.get_model_from_table_name(table_name)
+        app, model = self.get_model_from_table_name(table_name)
+        assert model, "Model for table %s was not found" % table_name
         output = []
         output.append('-- FYI: so we create a new ' + qn(table_name) +' and delete the old ')
         output.append('-- FYI: this could take a while if you have a lot of data') 
     
         tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
         output.extend(self.get_change_table_name_sql(tmp_table_name, table_name))
-        output.extend(model_create(model, self.get_all_models_in_app_from_table_name(table_name), self.style)[0])
-    
+        from django.db import models
+        referenced_tables = app and set(models.get_models(app)) or set()
+        output.extend(model_create(model, referenced_tables, self.style)[0])
         old_cols = []
         for f in model._meta.fields:
             if f.column in old_columns:
@@ -65,9 +70,8 @@ class DatabaseOperations:
     
         return output
     
-    def get_change_column_name_sql( self, table_name, indexes, old_col_name, new_col_name, col_type, f ):
+    def get_change_column_name_sql(self, table_name, indexes, old_col_name, new_col_name, col_type, f):
         # sqlite doesn't support column modifications, so we fake it
-        qn = self.connection.ops.quote_name
         model = self.get_model_from_table_name(table_name)
         if not model: 
             return ['-- model not found']
@@ -77,11 +81,7 @@ class DatabaseOperations:
 
     def get_change_column_def_sql(self, table_name, col_name, col_type, f, column_flags, f_default, updates):
         # sqlite doesn't support column modifications, so we fake it
-        qn = self.connection.ops.quote_name
-        kw = self.style.SQL_KEYWORD
-        fld = self.style.SQL_FIELD
-        tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        model = self.get_model_from_table_name(table_name)
+        app, model = self.get_model_from_table_name(table_name)
         if not model: 
             return ['-- model not found']
         output = []
@@ -109,14 +109,14 @@ class DatabaseOperations:
         output.append('-- FYI: sqlite does not support deleting columns')
         return output
     
-    def get_drop_table_sql( self, delete_tables):
+    def get_drop_table_sql(self, delete_tables):
         output = []
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         for table_name in delete_tables:
-            output.append( 
-                kw('DROP TABLE ')+ tqn(table_name) + ';' )
+            output.append(
+                kw('DROP TABLE ')+ tqn(table_name) + ';')
         return output
 
     def get_autoinc_sql(self, table):
@@ -126,93 +126,67 @@ class DatabaseOperations:
         from django.db import models
         for app in models.get_apps():
             app_name = app.__name__.split('.')[-2]
-            if table_name.startswith(app_name):
-                for model in models.get_models(app):
-                    if model._meta.db_table == table_name:
-                        return model
-        return None
-
-    def get_all_models_in_app_from_table_name(self, table_name):
-        #print 'table_name', table_name
-        from django.db import models
-        for app in models.get_apps():
-            app_name = app.__name__.split('.')[-2]
-            if table_name.startswith(app_name):
-                for model in models.get_models(app):
-                    if model._meta.db_table == table_name:
-                        return set(models.get_models(app))
-        return set()
-
+            for model in models.get_models(app):
+                if model._meta.db_table == table_name:
+                    return app, model
+        return None, None
     
 class DatabaseIntrospection:
     
     def __init__(self, connection):
         self.connection = connection
     
-    def get_schema_fingerprint(self, cursor, app):
-        """it's important that the output of these methods don't change, otherwise the hashes they
-        produce will be inconsistent (and detection of existing schemas will fail.  unless you are 
-        absolutely sure the outout for ALL valid inputs will remain the same, you should bump the version by creating a new method"""
-        return self.get_schema_fingerprint_fv1(cursor, app)
+    def get_schema_fingerprint(self, cursor, app_name):
+        schema = self.get_schema(cursor, app_name)
+        return 'fv2:'+ schema.get_hash()
     
-    def get_schema_fingerprint_fv1(self, cursor, app):
-        from django.db import models
-        app_name = app.__name__.split('.')[-2]
-    
-        schema = ['app_name := '+ app_name]
-    
+    def get_schema(self, cursor, app_name):
+        schema = DBSchema('DB schema')
         cursor.execute("select * from sqlite_master where type='table' order by name;")
-        for row in cursor.fetchall():
-            table_name = row[1]
+        table_names = [row[1] for row in cursor.fetchall()]
+        for table_name in table_names:
             if not table_name.startswith(app_name):
                 continue    # skip tables not in this app
-            table_description = [ s.strip() for s in row[4].split('\n')[1:-1] ]
-            table_description.sort()
-            schema.append('table_name := '+ table_name)
-            for s in table_description:
-                schema.append('\t'+s)
-        
-        schema_string = '\n'.join(schema)
-        #print 'schema_string', schema_string
-        return 'fv1:'+ str(schema_string.__hash__())
+            table = self.get_table(cursor, table_name)
+            schema.tables.append(table)
+            #table.indexes += self.get_indexes(cursor, table_name)
+        return schema
 
-    def get_columns(self, cursor, table_name):
-        try:
-            qn = self.connection.ops.quote_name
-            cursor.execute("PRAGMA table_info(%s)" % qn(table_name))
-            return [row[1] for row in cursor.fetchall()]
-        except:
-            return []
-        
-    def get_known_column_flags(self, cursor, table_name, column_name):
+    def get_table(self, cursor, table_name):
+        table = DBTable(name = table_name)
         qn = self.connection.ops.quote_name
         cursor.execute("PRAGMA table_info(%s)" % qn(table_name))
-        dict = {
-            'primary_key': False,
-            'foreign_key': False,
-            'unique': False,
-            'allow_null': False,
-            'max_length': None
-        }
-        
         for row in cursor.fetchall():
-    #        print row
-            if row[1] == column_name:
-                col_type = row[2]
+            column = DBField(
+                name = row[1], 
+                primary_key = False, 
+                foreign_key = False, 
+                unique = False, 
+                allow_null = False, 
+                max_length = None
+            )
+            table.fields.append(column)
+            col = column.traits
+            col_type = row[2]
     
                 # maxlength check goes here
-                dict['coltype'] = col_type
-                if row[2][0:7]=='varchar':
-                    dict['max_length'] = row[2][8:len(row[2])-1]
+            col['coltype'] = col_type
+            if row[2][0:7]=='varchar':
+                col['max_length'] = int(row[2][8:-1])
+                col['coltype'] = 'varchar'
+
                 # f_default flag check goes here
-                dict['allow_null'] = (row[3]==0)
+            col['allow_null'] = (row[3]==0)
                 
         cursor.execute("select sql from sqlite_master where name=%s;" % qn(table_name))
         for row in cursor.fetchall():
             table_description = [ s.strip() for s in row[0].split('\n')[1:-1] ]
             for column_description in table_description:
-                if column_description.startswith('"'+column_name+'"'):
-                    dict['primary_key'] = column_description.find(' PRIMARY KEY')>-1
-                    dict['unique'] = column_description.find(' UNIQUE')>-1
-    #    print dict
-        return dict
+                #print table_name, "::", column_description
+                if not column_description.startswith('"'): continue
+                colname = column_description.split('"',2)[1]
+                col = table.get_field(colname).traits
+                col['primary_key'] = ' PRIMARY KEY' in column_description
+                col['foreign_key'] = ' REFERENCES ' in column_description
+                col['unique'] = ' UNIQUE' in column_description
+        return table

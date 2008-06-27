@@ -1,0 +1,5 @@
+.svn/
+*/.svn/
+src/django
+._*
+*.bak

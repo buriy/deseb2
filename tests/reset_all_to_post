@@ -1,9 +1,3 @@
-cd case01_add_field/; rm models.py; ln -sf models.py.post models.py; cd ..
-cd case02_rename_field/; rm models.py; ln -sf models.py.post models.py; cd ..
-cd case03_rename_model/; rm models.py; ln -sf models.py.post models.py; cd ..
-cd case04_change_flag/; rm models.py; ln -sf models.py.post models.py; cd ..
-cd case05_remove_field/; rm models.py; ln -sf models.py.post models.py; cd ..
-cd case666_everything/; rm models.py; ln -sf models.py.post models.py; cd ..
-
-cd issue3_intfield_default_value/; rm models.py; ln -sf models.py.post models.py; cd ..
-cd issue4_textfield_add/; rm models.py; ln -sf models.py.post models.py; cd ..
+for a in case* issue* ; do
+    cd $a/; rm models.py; cp models.py.post models.py; cd ..;
+done

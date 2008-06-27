@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+import sys, os
+#print sys.path
+#sys.exit()
 from django.core.management import execute_manager
 try:
     import settings # Assumed to be in the same directory.

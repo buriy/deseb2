@@ -1,7 +1,7 @@
 import deseb
 from settings_common import *
 
-DATABASE_ENGINE = 'postgresql'           # 'postgresql', 'mysql', 'sqlite3' or 'ado_mssql'.
+DATABASE_ENGINE = 'postgresql_psycopg2'           # 'postgresql', 'mysql', 'sqlite3' or 'ado_mssql'.
 DATABASE_NAME = 'evolvedb'             # Or path to database file if using sqlite3.
 DATABASE_USER = 'evolvedb'             # Not used with sqlite3.
 DATABASE_PASSWORD = 'evolvedb'         # Not used with sqlite3.

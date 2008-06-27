@@ -3,6 +3,7 @@ try:
     import django.core.management.sql
     version = 'trunk'
 except ImportError:
+    from deseb import compatibility
     version = '0.96'
 """
     django has its own internal set of commands (stored in django.core.management.commands).
@@ -18,7 +19,8 @@ def db_type(self):
     internal_type = self.get_internal_type()
     if internal_type in ['ForeignKey']:
         return db_type(self.rel.to._meta.pk)
-    assert internal_type in data_types.keys(), "No such django type. Please send this error to maintainer."
+    if not internal_type in data_types.keys():
+        raise Exception("No such django type '%s'. Please send this error to maintainer." % internal_type) 
     return data_types.get(internal_type,'') % self.__dict__
 
 def add_aka_support():
@@ -67,6 +69,7 @@ def add_aka_support():
     django.db.models.TextField.__init__ = set_field_aka(django.db.models.TextField.__init__)
     django.db.models.USStateField.__init__ = set_field_aka(django.db.models.USStateField.__init__)
     
+    
     try:
         django.db.models.Field.db_type
     except:
@@ -113,7 +116,7 @@ def management_command_evolvedb_v0_96():
         "Interactively runs the SQL statements to bring your schema up to date with your models."
         import schema_evolution
         kwargs.update(get_additional_args())
-        return schema_evolution.run_sql_evolution_v0_96(*args, **kwargs)
+        return compatibility.run_sql_evolution_v0_96(*args, **kwargs)
     inner.args = '[--noinput] [--dont-notify] [--dont-save] ' + django.core.management.APP_ARGS
     return inner
 
@@ -122,7 +125,7 @@ def management_command_sqlevolve_v0_96():
         "Output the SQL ALTER statements to bring your schema up to date with your models."
         import schema_evolution
         kwargs.update(get_additional_args())
-        return schema_evolution.get_sql_evolution_v0_96(*args, **kwargs)
+        return compatibility.get_sql_evolution_v0_96(*args, **kwargs)
     inner.args = '[--noinput] [--dont-notify] ' + django.core.management.APP_ARGS
     return inner
 
@@ -131,7 +134,7 @@ def management_command_sqlfingerprint_v0_96():
         "Prints the app fingerprints."
         import schema_evolution
         kwargs.update(get_additional_args())
-        return schema_evolution.get_sql_fingerprint_v0_96(*args, **kwargs)
+        return compatibility.get_sql_fingerprint_v0_96(*args, **kwargs)
     inner.args = '' + django.core.management.APP_ARGS
     return inner
 
