@@ -1,64 +1,7 @@
-from deseb.differ import DBEntity
-from deseb.differ import TreeDiff
-import sha
-
-class DBField(DBEntity):
-    allowed_args = set(['allow_null', 'coltype', 'primary_key', 'foreign_key', 
-                        'unique', 'max_length', 'sequence'])
-    def __init__(self, name = None, aka=None, **kwargs):
-        if not set(kwargs) <= self.allowed_args:
-            raise Exception("Unsupported args: %s" % (set(kwargs) - self.allowed_args))
-        self.name = name
-        self.aka = aka
-        self.traits = kwargs
-    
-    def __repr__(self):
-        return 'Field "%s"' % self.name
-#        traits = []
-#        for k,v in sorted(self.traits.iteritems()):
-#            traits.append('%s=%s' % (k,v)) 
-#        return 'Field "%s", %s' % (self.name, ', '.join(traits))
-    
-class DBIndex(DBEntity):
-    allowed_args = set(['pk', 'unique'])
-    def __init__(self, name, pk=False, unique=False):
-        self.name = name
-        self.traits = dict(pk = pk, unique = unique)
-
-    def __repr__(self):
-        return 'Index "%s"' % self.name
-
-class DBTable(DBEntity):
-    children = ['fields', 'indexes']
-
-    def __init__(self, name, aka=None, **kwargs):
-        self.name = name
-        self.fields = []
-        self.indexes = []
-        self.aka = aka
-        self.traits = kwargs
-        
-    def get_field(self, name):
-        for f in self.fields:
-            if f.name == name:
-                return f 
-
-    def __repr__(self):
-        return 'Table "%s"' % self.name
-
-class DBSchema(DBEntity):
-    children = ('tables',)
-    def __init__(self, name = 'Schema'):
-        self.name = name
-        self.tables = []
-    
-    def __repr__(self):
-        return "%s:" % self.name
-    
-    def get_hash(self):
-        output = self.__unicode__()
-        return sha.new(output).hexdigest()[:10]
-
+from deseb.meta import DBSchema
+from deseb.meta import DBTable
+from deseb.meta import DBField
+from deseb.meta import TreeDiff
 def try_diff1():
     schema = DBSchema('First')
     table1 = DBTable('table1')
@@ -74,13 +17,13 @@ def try_diff1():
 def test_diff1():
     """
     >>> try_diff1()
-    First:
+    Schema "First"
       Table "table1"
         Field "id"
       Table "table2"
         Field "id"
         Field "name"
-    2b49284c2c
+    d0db1b989c
     """
     
 def try_diff2():
@@ -118,12 +61,13 @@ def try_diff3():
 def test_diff3():
     """
     >>> try_diff3()
-    Diff: First: -> Second:
-      tables
-      * table2->table3
-      *   fields
-      *   + Field "yyy"
-      *   - Field "id"
+    Schema "First" => Schema "Second"
+      Table "table1"
+        Field "id"
+    * Table "table2" => Table "table3"
+      * Field "name" => Field "xxx"
+      + Field "yyy"
+      - Field "id"
     """
 
 def try_diff4():
@@ -145,7 +89,16 @@ def try_diff4():
 def test_diff4():
     """
     >>> try_diff4()
-    Diff: First: -> Second:
+    Schema "First"
+      Table "table2"
+        Field "abc"
+    Schema "Second"
+      Table "table3"
+        Field "abc"
+    Schema "First" => Schema "Second"
+    * Table "table2" => Table "table3"
+        Field "abc"
+        * unique: False -> True
     """
 
 def run():

@@ -1,8 +1,8 @@
-from deseb.dbmodel import DBField
 from deseb.actions import NotNullColumnNeedsDefaultException
-from deseb.dbmodel import DBSchema
-from deseb.dbmodel import DBTable
-from deseb.dbmodel import DBIndex
+from deseb.meta import DBField
+from deseb.meta import DBIndex
+from deseb.meta import DBSchema
+from deseb.meta import DBTable
 
 class DatabaseOperations:
     
@@ -195,7 +195,6 @@ class DatabaseIntrospection:
                 name = column_name,
                 coltype = row[1], 
                 primary_key = False,
-                foreign_key = False,
                 unique = False,
                 allow_null = False,
                 max_length = None
@@ -215,7 +214,7 @@ class DatabaseIntrospection:
             
             # primary/foreign/unique key flag check goes here
             if row[3]=='PRI': dict['primary_key'] = True
-            if row[3]=='FOR': dict['foreign_key'] = True
+            # if row[3]=='FOR': dict['foreign_key'] = True
             if row[3]=='UNI': dict['unique'] = True
             table.fields.append(info)
         # print table_name, column_name, dict

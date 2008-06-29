@@ -1,9 +1,7 @@
 from deseb.actions import get_introspected_evolution_options
-from deseb.builder import build_model_schema
 from deseb.common import color
 from deseb.common import get_operations_and_introspection_classes
 from deseb.common import management
-from deseb.dbmodel import TreeDiff
 import os, sys, datetime, traceback
 
 DEBUG = False

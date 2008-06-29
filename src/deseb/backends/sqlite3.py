@@ -1,12 +1,13 @@
-from deseb.dbmodel import DBField
-from deseb.dbmodel import DBSchema
-from deseb.dbmodel import DBTable
-import deseb.actions
+from deseb.actions import fixed_sql_model_create as model_create
+from deseb.actions import get_field_type
+from deseb.meta import DBField
+from deseb.meta import DBSchema
+from deseb.meta import DBTable
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
-model_create = deseb.actions.fixed_sql_model_create
+NOT_PROVIDED = 'django.db.models.fields.NOT_PROVIDED'
 
 class DatabaseOperations:
     def quote_value(self, s):
@@ -57,7 +58,6 @@ class DatabaseOperations:
             elif f.column in renamed_columns:
                 old_cols.append(fqn(renamed_columns[f.column]))
             else:
-                NOT_PROVIDED = 'django.db.models.fields.NOT_PROVIDED'
                 default = f.default
                 if default is None or str(default) == NOT_PROVIDED or callable(default):
                     default = ''
@@ -160,7 +160,6 @@ class DatabaseIntrospection:
             column = DBField(
                 name = row[1], 
                 primary_key = False, 
-                foreign_key = False, 
                 unique = False, 
                 allow_null = False, 
                 max_length = None
@@ -170,7 +169,7 @@ class DatabaseIntrospection:
             col_type = row[2]
     
                 # maxlength check goes here
-            col['coltype'] = col_type
+            col['coltype'] = get_field_type(col_type)
             if row[2][0:7]=='varchar':
                 col['max_length'] = int(row[2][8:-1])
                 col['coltype'] = 'varchar'
@@ -187,6 +186,6 @@ class DatabaseIntrospection:
                 colname = column_description.split('"',2)[1]
                 col = table.get_field(colname).traits
                 col['primary_key'] = ' PRIMARY KEY' in column_description
-                col['foreign_key'] = ' REFERENCES ' in column_description
+                #col['foreign_key'] = ' REFERENCES ' in column_description
                 col['unique'] = ' UNIQUE' in column_description
         return table

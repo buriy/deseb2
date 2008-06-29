@@ -1,8 +1,8 @@
-from deseb.dbmodel import DBField
 from deseb.actions import NotNullColumnNeedsDefaultException
-from deseb.dbmodel import DBTable
-from deseb.dbmodel import DBSchema
-from deseb.dbmodel import DBIndex
+from deseb.meta import DBField
+from deseb.meta import DBIndex
+from deseb.meta import DBSchema
+from deseb.meta import DBTable
 
 class DatabaseOperations:
     def quote_value(self, s):
@@ -241,7 +241,7 @@ class DatabaseIntrospection:
             column = DBField(
                 name = row[0], 
                 primary_key = False,
-                foreign_key = False,
+                # foreign_key = False,
                 unique = False,
                 allow_null = False,
                 max_length = None
@@ -271,11 +271,11 @@ class DatabaseIntrospection:
         for row in cursor.fetchall():
             col = table.get_field(row[2]).traits
             if row[1]=='p': col['primary_key'] = True
-            if row[1]=='f': col['foreign_key'] = True
+            #if row[1]=='f': col['foreign_key'] = True
             if row[1]=='u': col['unique']= True
-        for field in table.fields:
-            if field.primary_key:
-                field.foreign_key = False
+        # for field in table.fields:
+        #     if field.primary_key:
+        #         field.foreign_key = False
         # default value check
         cursor.execute("select pg_attribute.attname, adsrc from pg_attrdef, pg_attribute "
                        "WHERE pg_attrdef.adrelid=pg_attribute.attrelid and "

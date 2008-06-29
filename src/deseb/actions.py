@@ -1,11 +1,15 @@
-from deseb.builder import build_model_flags
 from deseb.common import get_operations_and_introspection_classes
 from deseb.common import management
 from deseb.common import version
 from django.conf import settings
-from deseb.builder import build_model_schema
-from deseb.differ import TreeDiff
-from deseb.builder import build_model_table
+from deseb.models import compare_field_length
+from deseb.models import get_field_type
+from deseb.models import build_model_flags
+from deseb.models import get_field_default
+from deseb.models import show_evolution_plan
+from deseb.models import show_table_evolution_plan
+from deseb.models import build_model_schema
+from deseb.meta import TreeDiff
 
 DEBUG = False
 
@@ -141,29 +145,9 @@ def get_sql_evolution_rebuild_table(klass, old_table_name, style):
             continue
         if old_col != f.column:
             renamed_fields[f.column] = old_col
-    
     output.extend(ops.get_rebuild_table_sql(klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), existing_fields, renamed_fields))
     return output
     
-def get_field_default(f):
-    from django.db.models.fields import NOT_PROVIDED
-    if callable(f.default): return NOT_PROVIDED
-    return f.default
-
-def get_field_type(f):
-    f = f.split('(')[0].split(' ')[0]
-    if f in ['integer', 'serial']: return 'int'
-    if f in ['tinyint']: return 'bool'
-    if f in ['decimal']: return 'numeric'
-    return f    
-
-def compare_field_length(f, column_flags):
-    from django.db.models.fields import CharField, SlugField, AutoField
-    f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', None)))
-    db_maxlength = str(column_flags.traits.get('max_length', 64000))
-    return(not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
-          (not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
-
 def find_updates(column_flags, model_flags, f, table_name):
     f_col_type = model_flags.coltype
     is_postgresql = settings.DATABASE_ENGINE in ['postgresql', 'postgresql_psycopg2']
@@ -352,34 +336,33 @@ def _get_many_to_many_sql_for_field(model, f, style):
 
     return final_output
 
-def show_evolution_plan(cursor, app, style):
+def update_table(changes):
+    pass
+
+def update_schema(changes):
+    commands = []
+    for change in changes:
+        action = change.action()
+
+def get_introspected_evolution_options(app, style):
+    from django.db import models, get_introspection_module, connection
+    ops, introspection = get_operations_and_introspection_classes(style)
+    cursor = connection.cursor()
+    app_name = app.__name__.split('.')[-2]
+
     ops, introspection = get_operations_and_introspection_classes(style)
 
     model_schema = build_model_schema(app)
     app_name = app.__name__.split('.')[-2]
     db_schema = introspection.get_schema(cursor, app_name) 
-    #print unicode(db_schema)
-    #print unicode(model_schema)
     diff = TreeDiff(db_schema, model_schema)
-    #print unicode(db_schema)
-    #print unicode(model_schema)
     print unicode(diff)
-    import sys
-    sys.exit()
-
-def show_table_evolution_plan(cursor, app, model, style):
-    ops, introspection = get_operations_and_introspection_classes(style)
-    model_schema = build_model_table(app, model)
-    #app_name = app.__name__.split('.')[-2]
-    db_schema = introspection.get_table(cursor, model._meta.db_table) 
-    #print unicode(db_schema)
-    #print unicode(model_schema)
-    diff = TreeDiff(db_schema, model_schema)
-    raise Exception(unicode(diff))
-
-def get_introspected_evolution_options(app, style):
-    ops, introspection = get_operations_and_introspection_classes(style)
+    
+    return update_schema(diff.changes)
+    
+def get_introspected_evolution_options_old(app, style):
     from django.db import models, get_introspection_module, connection
+    ops, introspection = get_operations_and_introspection_classes(style)
     cursor = connection.cursor()
     app_name = app.__name__.split('.')[-2]
 
@@ -412,36 +395,37 @@ def get_introspected_evolution_options(app, style):
         if model in app_models:
             app_models.remove(model)
 
+    show_evolution_plan(cursor, app, style)
+    
     for model in app_models:
         if model._meta.db_table:
             seen_tables.add(model._meta.db_table)
-            
+
         show_table_evolution_plan(cursor, app, model, style)
         
         output, old_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
         if old_table_name: seen_tables.add(old_table_name)
         final_output.extend(output)
         
-        rebuild = False
+        suboutput = []
         output = get_sql_evolution_check_for_changed_field_flags(model, old_table_name, style)
-        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
-        final_output.extend(output)
+        suboutput.extend(output)
     
         output = get_sql_evolution_check_for_changed_field_name(model, old_table_name, style)
-        final_output.extend(output)
-        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
+        suboutput.extend(output)
         
         output = get_sql_evolution_check_for_new_fields(model, old_table_name, style)
-        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
-        final_output.extend(output)
+        suboutput.extend(output)
         
         output = get_sql_evolution_check_for_dead_fields(model, old_table_name, style)
-        if output and settings.DATABASE_ENGINE == 'sqlite3': rebuild = True
-        final_output.extend(output)
+        suboutput.extend(output)
         
-        if rebuild:
+        if suboutput and settings.DATABASE_ENGINE == 'sqlite3':
             output = get_sql_evolution_rebuild_table(model, old_table_name, style)
+            final_output.extend(suboutput)
             final_output.extend(output)
+        else:
+            final_output.extend(suboutput)
 
     for model in app_models + list(created_models):
         for f in model._meta.many_to_many:
@@ -449,6 +433,7 @@ def get_introspected_evolution_options(app, style):
             if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
                 final_output.extend(_get_many_to_many_sql_for_field(model, f, style))
                 seen_tables.add(f.m2m_db_table())
+                
     output = get_sql_evolution_check_for_dead_models(table_list, seen_tables, app_name, app_models, style)
     final_output.extend(output)
 
