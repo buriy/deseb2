@@ -5,3 +5,4 @@ src/django
 tests/*/models.py
 tests/default.db
 tests/default-init.db
+tests/settings.py
