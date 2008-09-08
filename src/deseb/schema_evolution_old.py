@@ -78,11 +78,11 @@ def get_sql_indexes_for_field(model, f, style):
     
 def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
     "checks for model fields that are not in the existing data structure"
-    from django.db import get_creation_module, get_introspection_module, connection
+    from django.db import connection
 
     ops, introspection = get_operations_and_introspection_classes(style)
     
-    data_types = get_creation_module().DATA_TYPES
+    data_types = connection.creation.data_types
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)
     opts = model._meta
@@ -207,8 +207,8 @@ def compare_field_length(f, column_flags):
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
     ops, introspection = get_operations_and_introspection_classes(style)
     
-    from django.db import get_creation_module, connection
-    data_types = get_creation_module().DATA_TYPES
+    from django.db import connection.creation, connection
+    data_types = connection.creation.data_types
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)
     opts = klass._meta

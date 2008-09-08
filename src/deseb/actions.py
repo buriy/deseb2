@@ -2,16 +2,17 @@ from deseb.common import get_operations_and_introspection_classes
 from deseb.common import management
 from deseb.common import version
 from django.conf import settings
-from deseb.models import compare_field_length
-from deseb.models import get_field_type
-from deseb.models import build_model_flags
-from deseb.models import get_field_default
-from deseb.models import show_evolution_plan
-from deseb.models import show_table_evolution_plan
-from deseb.models import build_model_schema
+from deseb.builder import compare_field_length, get_field_type, build_model_flags,\
+    get_field_default, build_model_schema
 from deseb.meta import TreeDiff
+from deseb.meta import DBIndex
+from deseb.meta import DBField
 
 DEBUG = False
+
+def get_introspection_module():
+    from django.db import connection
+    return connection.introspection
 
 class NotNullColumnNeedsDefaultException(Exception): pass
 class MultipleRenamesPossibleException(Exception): pass
@@ -20,7 +21,7 @@ def get_sql_indexes_for_field(model, f, style):
     "Returns the CREATE INDEX SQL statement for a single field"
     from django.db import backend, connection
     output = []
-    if f.db_index and not ((f.primary_key or f.unique) and connection.features.autoindexes_primary_keys):
+    if f.db_index and not (f.primary_key or f.unique):
         unique = f.unique and 'UNIQUE ' or ''
         try:
             tablespace = f.db_tablespace or model._meta.db_tablespace
@@ -42,11 +43,11 @@ def get_sql_indexes_for_field(model, f, style):
     
 def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
     "checks for model fields that are not in the existing data structure"
-    from django.db import get_creation_module, get_introspection_module, connection
+    from django.db import connection
 
     ops, introspection = get_operations_and_introspection_classes(style)
     
-    data_types = get_creation_module().DATA_TYPES
+    #data_types = connection.creation.data_types
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)
     opts = model._meta
@@ -64,12 +65,11 @@ def get_sql_evolution_check_for_new_fields(model, old_table_name, style):
     return output
 
 def get_sql_evolution_check_for_changed_model_name(klass, style):
-    from django.db import get_introspection_module, connection
+    from django.db import connection
 
     ops, introspection = get_operations_and_introspection_classes(style)
 
     cursor = connection.cursor()
-    introspection = get_introspection_module()
 #    ops = get_ops_class(connection)
     table_list = introspection.get_table_list(cursor)
     if klass._meta.db_table in table_list:
@@ -85,7 +85,7 @@ def get_sql_evolution_check_for_changed_model_name(klass, style):
         return [], None
     
 def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style):
-    from django.db import get_introspection_module, connection
+    from django.db import connection
     
     ops, introspection = get_operations_and_introspection_classes(style)
 
@@ -115,11 +115,11 @@ def get_sql_evolution_check_for_changed_field_name(klass, old_table_name, style)
                     col_def += style.SQL_KEYWORD(' UNIQUE')
                 if f.primary_key:
                     col_def += style.SQL_KEYWORD(' PRIMARY KEY')
-                output.extend(ops.get_change_column_name_sql(klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), old_col, f.column, col_type_def, f))
+                output.extend(ops.get_change_column_name_sql(klass._meta.db_table, introspection.get_indexes(cursor,db_table), old_col, f.column, col_type_def, f))
     return output
     
 def get_sql_evolution_rebuild_table(klass, old_table_name, style):
-    from django.db import get_introspection_module, connection
+    from django.db import connection
     
     ops, introspection = get_operations_and_introspection_classes(style)
 
@@ -145,7 +145,8 @@ def get_sql_evolution_rebuild_table(klass, old_table_name, style):
             continue
         if old_col != f.column:
             renamed_fields[f.column] = old_col
-    output.extend(ops.get_rebuild_table_sql(klass._meta.db_table, get_introspection_module().get_indexes(cursor,db_table), existing_fields, renamed_fields))
+    
+    output.extend(ops.get_rebuild_table_sql(klass._meta.db_table, introspection.get_indexes(cursor,db_table), existing_fields, renamed_fields))
     return output
     
 def find_updates(column_flags, model_flags, f, table_name):
@@ -175,8 +176,8 @@ def find_updates(column_flags, model_flags, f, table_name):
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
     ops, introspection = get_operations_and_introspection_classes(style)
     
-    from django.db import get_creation_module, connection
-    data_types = get_creation_module().DATA_TYPES
+    from django.db import connection
+    data_types = connection.creation.data_types
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)
     opts = klass._meta
@@ -265,7 +266,9 @@ def get_sql_evolution_check_for_dead_models(table_list, safe_tables, app_name, a
     return ops.get_drop_table_sql(delete_tables)
 
 def fixed_sql_model_create(model, known_models, style):
+    from django.db import connection
     if version == 'trunk':
+        return connection.creation.sql_create_model(model, style, known_models)
         return management.sql_model_create(model, style, known_models)
     else:
         return management._get_sql_model_create(model, known_models)
@@ -286,7 +289,7 @@ def _get_many_to_many_sql_for_field(model, f, style):
             tablespace = f.db_tablespace or opts.db_tablespace
         except: # v0.96 compatibility
             tablespace = None
-        if tablespace and backend.supports_tablespaces and connection.features.autoindexes_primary_keys:
+        if tablespace and backend.supports_tablespaces:
             tablespace_sql = ' ' + backend.get_tablespace_sql(tablespace, inline=True)
         else:
             tablespace_sql = ''
@@ -336,38 +339,176 @@ def _get_many_to_many_sql_for_field(model, f, style):
 
     return final_output
 
-def update_table(changes):
-    pass
-
-def update_schema(changes):
-    commands = []
-    for change in changes:
-        action = change.action()
-
-def get_introspected_evolution_options(app, style):
-    from django.db import models, get_introspection_module, connection
-    ops, introspection = get_operations_and_introspection_classes(style)
-    cursor = connection.cursor()
-    app_name = app.__name__.split('.')[-2]
-
+def show_evolution_plan(cursor, app, style):
     ops, introspection = get_operations_and_introspection_classes(style)
 
     model_schema = build_model_schema(app)
     app_name = app.__name__.split('.')[-2]
-    db_schema = introspection.get_schema(cursor, app_name) 
+    table_list = get_introspection_module().get_table_list(cursor)
+    seen_models = get_introspection_module().installed_models(table_list)
+    app_models = [m._meta.db_table for m in seen_models if m._meta.app_label == app_name and m._meta.db_table]
+    db_schema = introspection.get_schema(cursor, app_name, app_models)
+    db_schema.name = 'Current DB'
+    #print unicode(db_schema)
+    #print unicode(model_schema)
     diff = TreeDiff(db_schema, model_schema)
-    print unicode(diff)
+    #print unicode(db_schema)
+    #print unicode(model_schema)
+    if diff:
+        print unicode(diff)
+    #import sys
+    #sys.exit()
+
+def update_traits(changes, table, style):
+    ops, introspection = get_operations_and_introspection_classes(style)
+    commands = []
+    _app, model = ops.get_model_from_table_name(table.name)
+    for change in changes:
+        print '   ', repr(change) 
+        action = change.action()
+        if action == 'add':
+            commands.append(
+                (change, '[add property]')
+            )
+        elif action == 'remove':
+            commands.append(
+                (change, '[remove property]')
+#               (change, ops.get_drop_column_sql([change.left.name]))
+            )
+        elif action == 'update':
+            raise 'What?!'
+        elif action == 'change':
+            commands.append(
+                (change, '[update property]')
+            )
+#        elif action == 'rename':
+#            commands.append(
+#                (change, ops.get_change_column_sql(change.left.name, change.right.name))
+#            )
+#            if change.nested:
+#                commands.append(
+#                    update_table(change.nested, style)
+#                )
+    return commands    
+
+def update_table(changes, table, style):
+    ops, introspection = get_operations_and_introspection_classes(style)
+    commands = []
+    _app, model = ops.get_model_from_table_name(table.name)
+    for change in changes:
+        print ' ', repr(change) 
+        action = change.action()
+        if action == 'add':
+            if isinstance(change.right, DBField):
+                commands.append(
+                    (change, '[add field]')
+                )
+            elif isinstance(change.right, DBIndex):
+#                commands.append(
+#                    (change, '[add index]')
+#                )
+                pass
+        elif action == 'remove':
+            commands.append(
+                (change, '[remove field]')
+#               (change, ops.get_drop_column_sql([change.left.name]))
+            )
+        elif action == 'update':
+            if change.nested:
+                commands.extend(
+                    update_traits(change.nested, change.left, style)
+                )
+        elif action == 'change':
+            commands.append(
+                (change, '[update field]')
+            )
+#        elif action == 'rename':
+#            commands.append(
+#                (change, ops.get_change_column_sql(change.left.name, change.right.name))
+#            )
+#            if change.nested:
+#                commands.append(
+#                    update_table(change.nested, style)
+#                )
+    return commands    
+
+def update_schema(diff, style):
+    ops, introspection = get_operations_and_introspection_classes(style)
+    commands = []
+    for change in diff.changes:
+        action = change.action()
+        print repr(change) 
+        if action == 'add':
+            #print "Adding model "+change.right.name
+            _app, model = ops.get_model_from_table_name(change.right.name)
+            if not model: continue
+            sql, _refs = fixed_sql_model_create(model, {}, style)
+            commands.append(
+                (change, sql)
+            )
+        elif action == 'remove':
+            _app, model = ops.get_model_from_table_name(change.left.name)
+            commands.append(
+                (change, ops.get_drop_table_sql([change.left.name]))
+            )
+        elif action == 'update':
+            commands.extend(
+                update_table(change.nested, change.left, style)
+            )
+#        elif action == 'change':
+#            commands.append(
+#                (change, ops.get_change_column_def_sql)
+#            )
+        elif action == 'rename':
+            commands.append(
+                (change, ops.get_change_table_name_sql(change.left.name, change.right.name))
+            )
+            if change.nested:
+                commands.append(
+                    update_table(change.nested, style)
+                )
+    return commands    
+
+def get_installed_tables(app, model_schema = None):
+    if model_schema is None:
+        model_schema = build_model_schema(app)
+    add_tables = set()
+    for model in model_schema.tables:
+        add_tables.add(model.name)
+        add_tables.update(model.aka)
+    return add_tables
+
+def get_introspected_evolution_options(app, style):
+    from django.db import connection
+    _ops, introspection = get_operations_and_introspection_classes(style)
+    cursor = connection.cursor()
+    app_name = app.__name__.split('.')[-2]
+    print '-'*55
+    print 'Application "%s":' % app_name
+
+    model_schema = build_model_schema(app)
     
-    return update_schema(diff.changes)
+    add_tables = get_installed_tables(app, model_schema)
+    
+    db_schema = introspection.get_schema(cursor, app_name, add_tables)
+    
+    diff = TreeDiff(db_schema, model_schema)
+    #print unicode(model_schema)
+    #print unicode(diff)
+    output = []
+    for change, sql in update_schema(diff, style):
+        output.append(sql)
+        #output.extend(sql)
+    return output
     
 def get_introspected_evolution_options_old(app, style):
-    from django.db import models, get_introspection_module, connection
+    from django.db import models, connection
     ops, introspection = get_operations_and_introspection_classes(style)
     cursor = connection.cursor()
     app_name = app.__name__.split('.')[-2]
 
-    table_list = get_introspection_module().get_table_list(cursor)
-    seen_models = management.installed_models(table_list)
+    table_list = introspection.get_table_list(cursor)
+    seen_models = introspection.installed_models(table_list)
     created_models = set()
     final_output = []
     
@@ -395,13 +536,11 @@ def get_introspected_evolution_options_old(app, style):
         if model in app_models:
             app_models.remove(model)
 
-    show_evolution_plan(cursor, app, style)
-    
     for model in app_models:
         if model._meta.db_table:
             seen_tables.add(model._meta.db_table)
 
-        show_table_evolution_plan(cursor, app, model, style)
+        #show_table_evolution_plan(cursor, app, model, style)
         
         output, old_table_name = get_sql_evolution_check_for_changed_model_name(model, style)
         if old_table_name: seen_tables.add(old_table_name)
@@ -430,7 +569,7 @@ def get_introspected_evolution_options_old(app, style):
     for model in app_models + list(created_models):
         for f in model._meta.many_to_many:
             #creating many_to_many table
-            if not f.m2m_db_table() in get_introspection_module().get_table_list(cursor):
+            if not f.m2m_db_table() in introspection.get_table_list(cursor):
                 final_output.extend(_get_many_to_many_sql_for_field(model, f, style))
                 seen_tables.add(f.m2m_db_table())
                 

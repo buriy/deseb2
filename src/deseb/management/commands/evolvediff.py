@@ -37,8 +37,8 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
 
     def handle_app(self, app, **options):
         import deseb.schema_evolution
-        deseb.schema_evolution.evolvedb(app, 
-            options.get('interactive', True), 
-            options.get('do_save', True),
-            options.get('do_notify', False),
-            options.get('managed_upgrade_only', False))
+        deseb.schema_evolution.evolvediff(app, 
+            options.get('interactive'), 
+            options.get('do_save'),
+            options.get('do_notify'),
+            options.get('managed_upgrade_only'))

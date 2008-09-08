@@ -56,7 +56,7 @@ class DBEntity(object):
             return []
     
 class DBField(DBEntity):
-    allowed_args = set(['allow_null', 'coltype', 'primary_key',  
+    allowed_args = set(['allow_null', 'coltype', 'primary_key', 'foreign_key',
                         'unique', 'max_length', 'sequence'])
     def __init__(self, name = None, aka=None, **kwargs):
         if not set(kwargs) <= self.allowed_args:
@@ -106,7 +106,7 @@ class DBSchema(DBEntity):
         self.tables = []
     
     def __repr__(self):
-        return 'Schema "%s"' % self.name
+        return 'Schema "%s":' % self.name
     
     def get_hash(self):
         output = self.__unicode__()
@@ -143,7 +143,23 @@ class NodeChange(object):
             else:
                 return 'update'
     
+    def attr(self):
+        if self.left is None:
+            return self.rformat(self.right)
+        if self.right is None:
+            return self.rformat(self.left)
+        lname = self.rformat(self.left)
+        rname = self.rformat(self.right)
+        if lname != rname:
+            return "%s => %s" % (lname, rname)
+        else:
+            return lname
+    
     def __repr__(self):
+        action = (self.action()+'ing').replace('eing', 'ing').capitalize()
+        return "%s %s" % (action, self.attr()) 
+    
+    def __unicode__(self):
         output = []
         if self.left is None:
             output.append(indent(self.format(self.right), '+ '))
@@ -161,7 +177,7 @@ class NodeChange(object):
                 output.append('  '+lname)
         
         for child in self.nested:
-            output.append(indent(repr(child)))
+            output.append(indent(unicode(child)))
         return '\n'.join(output)
 
 class AttributeChange(NodeChange):
@@ -175,8 +191,11 @@ class AttributeChange(NodeChange):
     def format(self, item):
         return '%s "%s"' % (self.klass, item)
     
-    def __repr__(self):
+    def __unicode__(self):
         return '* '+self.klass+': %s -> %s' % (self.left, self.right)
+    
+    def __repr__(self):
+        return "Changing attribute "+self.klass
 
 class TreeDiff(object):
     def __init__(self, m1, m2):
@@ -184,9 +203,12 @@ class TreeDiff(object):
         self.m2 = m2
         self.changes = self.diff(m1, m2)
 
+    def __nonzero__(self):
+        return bool(self.changes)
+
     def __unicode__(self):
-        fmt = '%s => %s' % (repr(self.m1), repr(self.m2))
-        return fmt + '\n'+self.__repr__()
+        fmt = 'Diff: %s => %s' % (self.m1.name, self.m2.name)
+        return fmt + '\n' +self.__repr__()
 
     def __repr__(self):
         return "\n".join([unicode(x) for x in self.changes])
@@ -233,7 +255,8 @@ class TreeDiff(object):
                 if oldname: 
                     if isinstance(olditem, DBEntity):
                         subquery = self.diff(olditem, newitem)
-                        changes.append(NodeChange(olditem, newitem, subquery)) #update
+                        if subquery or oldname != newname: 
+                            changes.append(NodeChange(olditem, newitem, subquery)) #update
                     elif oldname != newname:
                         raise Exception("Invalid schema.")
                     elif olditem != newitem:

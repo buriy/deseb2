@@ -76,7 +76,7 @@ def silent_execute(cursor, command):
     cursor.execute(command)
     
 def print_and_execute(cursor, sql, execute=True): 
-    #print pprint.pformat(sql).replace('\\\\n', '\\n')
+    print pprint.pformat(sql).replace('\\\\n', '\\n')
     raise Exception(pprint.pformat(sql).replace('\\\\n', '\\n'))
     if not execute: return #this option is useful for debugging
     for command in sql: 

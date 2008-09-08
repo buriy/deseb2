@@ -1,14 +1,23 @@
-from deseb.actions import get_introspected_evolution_options
+from deseb.actions import get_introspected_evolution_options, show_evolution_plan
 from deseb.common import color
 from deseb.common import get_operations_and_introspection_classes
 from deseb.common import management
+from deseb.builder import build_model_schema
 import os, sys, datetime, traceback
 
 DEBUG = False
 
-def get_sql_evolution(app, style, notify=True):
+def get_sql_evolution(app, style, notify=False):
     "Returns SQL to update an existing schema to match the existing models."
     return get_sql_evolution_detailed(app, style, notify)[2]
+
+def get_installed_tables(app):
+    model_schema = build_model_schema(app)
+    add_tables = set()
+    for model in model_schema.tables:
+        add_tables.add(model.name)
+        add_tables.update(model.aka)
+    return add_tables
 
 def get_sql_evolution_detailed(app, style, notify):
     "Returns SQL to update an existing schema to match the existing models."
@@ -22,7 +31,7 @@ def get_sql_evolution_detailed(app, style, notify):
     
     final_output = []
 
-    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name)
+    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name, get_installed_tables(app))
     schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade \
         = get_managed_evolution_options(app, schema_fingerprint, style, notify)
     if schema_recognized:
@@ -71,7 +80,7 @@ def get_sql_fingerprint(app, style, notify=True):
     ops, introspection = get_operations_and_introspection_classes(style)
 
     app_name = app.__name__.split('.')[-2]
-    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name)
+    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name, get_installed_tables(app))
     try:
         fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, notify)
         # is this a schema we recognize?
@@ -155,7 +164,13 @@ def save_managed_evolution(app, commands, schema_fingerprint, new_schema_fingerp
     file = open(se_file, 'w')
     file.writelines(contents)
     
-def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgrade_only=False):
+def evolvediff(app, interactive=True, do_save=False, do_notify=True, managed_upgrade_only=False):
+    from django.db import connection
+    cursor = connection.cursor()
+    style = color.no_style()
+    show_evolution_plan(cursor, app, style)
+
+def evolvedb(app, interactive=True, do_save=False, do_notify=False, managed_upgrade_only=False):
     from django.db import connection
     cursor = connection.cursor()
 
@@ -175,7 +190,7 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgra
         commands = []
         commands_color = []
     
-        schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name)
+        schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name, get_installed_tables(app))
         schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = \
                     get_managed_evolution_options(app, schema_fingerprint, style, do_notify)
         if fingerprints and evolutions:
@@ -218,7 +233,7 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=True, managed_upgra
                     cursor.execute(cmd)
             connection._commit() # commit changes
             if interactive: print 'schema upgrade executed'
-            new_schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name)
+            new_schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name, get_installed_tables(app))
             
             if schema_fingerprint==new_schema_fingerprint:
                 print "schema fingerprint was unchanged - this really shouldn't happen"

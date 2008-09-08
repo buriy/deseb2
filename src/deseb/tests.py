@@ -1,7 +1,8 @@
-from deseb.meta import DBSchema
-from deseb.meta import DBTable
-from deseb.meta import DBField
-from deseb.meta import TreeDiff
+from meta import DBSchema
+from meta import DBTable
+from meta import DBField
+from meta import TreeDiff
+
 def try_diff1():
     schema = DBSchema('First')
     table1 = DBTable('table1')
@@ -17,13 +18,13 @@ def try_diff1():
 def test_diff1():
     """
     >>> try_diff1()
-    Schema "First"
+    Schema "First":
       Table "table1"
         Field "id"
       Table "table2"
         Field "id"
         Field "name"
-    d0db1b989c
+    7209d39e0f
     """
     
 def try_diff2():
@@ -35,6 +36,7 @@ def try_diff2():
         print f.yyy
     except AttributeError:
         print "no f.yyy -- that's ok"
+
 def test_diff2():
     """
     >>> try_diff2()
@@ -61,9 +63,7 @@ def try_diff3():
 def test_diff3():
     """
     >>> try_diff3()
-    Schema "First" => Schema "Second"
-      Table "table1"
-        Field "id"
+    Diff: First => Second
     * Table "table2" => Table "table3"
       * Field "name" => Field "xxx"
       + Field "yyy"
@@ -89,13 +89,13 @@ def try_diff4():
 def test_diff4():
     """
     >>> try_diff4()
-    Schema "First"
+    Schema "First":
       Table "table2"
         Field "abc"
-    Schema "Second"
+    Schema "Second":
       Table "table3"
         Field "abc"
-    Schema "First" => Schema "Second"
+    Diff: First => Second
     * Table "table2" => Table "table3"
         Field "abc"
         * unique: False -> True

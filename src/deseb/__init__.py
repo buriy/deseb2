@@ -13,9 +13,9 @@ except ImportError:
 added_aka_support = False
 
 def db_type(self):
-    from django.db import get_creation_module
+    from django.db import connection
     from django.db.models.fields.related import ForeignKey
-    data_types = get_creation_module().DATA_TYPES
+    data_types = connection.creation.data_types
     internal_type = self.get_internal_type()
     if internal_type in ['ForeignKey']:
         return db_type(self.rel.to._meta.pk)
@@ -96,6 +96,7 @@ def add_management_commands(func):
         add_aka_support()
         rv = func(*args, **kwargs)
         rv['evolvedb'] = 'deseb'
+        rv['evolvediff'] = 'deseb'
         rv['sqlevolve'] = 'deseb'
         rv['fingerprint'] = 'deseb'
         return rv

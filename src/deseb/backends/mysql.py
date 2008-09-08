@@ -3,6 +3,7 @@ from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBSchema
 from deseb.meta import DBTable
+from deseb.backends.base import BaseDatabaseIntrospection
 
 class DatabaseOperations:
     
@@ -43,7 +44,7 @@ class DatabaseOperations:
         output = []
         col_def = fct(col_type)
         if not f.primary_key:
-            col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
+            col_def += ' ' + kw(not f.allow_null and 'NOT NULL' or 'NULL')
         output.append(
             kw('ALTER TABLE ')+ tqn(table_name) +
             kw(' CHANGE COLUMN ')+ fqn(old_col_name) + ' ' +
@@ -61,10 +62,10 @@ class DatabaseOperations:
         output = []
 
         if updates['update_null'] or updates['update_type']:
-            if str(f_default)==str(NOT_PROVIDED) and not f.null: 
+            if str(f_default)==str(NOT_PROVIDED) and not f.allow_null: 
                 details = 'column "%s" of table "%s"' % (col_name, table_name)
                 raise NotNullColumnNeedsDefaultException("when modified " + details)
-            if str(f_default)!=str(NOT_PROVIDED) and not f.null: 
+            if str(f_default)!=str(NOT_PROVIDED) and not f.allow_null: 
                 output.append(
                     kw('UPDATE ') + tqn(table_name) +
                     kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) + 
@@ -72,7 +73,7 @@ class DatabaseOperations:
 
         col_def = fct(col_type)
         if not f.primary_key:
-            col_def += ' ' + kw(not f.null and 'NOT NULL' or 'NULL')
+            col_def += ' ' + kw(not f.allow_null and 'NOT NULL' or 'NULL')
         #if f.unique:
         #    col_def += ' ' + kw('UNIQUE')
         #if f.primary_key:
@@ -83,7 +84,8 @@ class DatabaseOperations:
         
         return output
     
-    def get_add_column_sql(self, table_name, col_name, col_type, null, unique, primary_key, f_default):
+    def get_add_column_sql(self, table_name, field, f_default):
+        #col_name, col_type, null, unique, primary_key, f_default = col_info
         from django.db.models.fields import NOT_PROVIDED
         output = []
         qn = self.connection.ops.quote_name
@@ -95,14 +97,14 @@ class DatabaseOperations:
         field_output = []
         field_output.append(
             kw('ALTER TABLE ') + tqn(table_name) +
-            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fct(col_type))
+            kw(' ADD COLUMN ') + fqn(field.name) + ' ' + fct(col_type))
         if unique:
             field_output.append(kw('UNIQUE'))
         if primary_key:
             field_output.append(kw('PRIMARY KEY'))
         output.append(' '.join(field_output) + ';')
         if primary_key: return output
-        if str(f_default)==str(NOT_PROVIDED) and not null: 
+        if str(f_default)==str(NOT_PROVIDED) and not field.allow_null: 
             details = 'column "%s" into table "%s"' % (col_name, table_name)
             raise NotNullColumnNeedsDefaultException("when added " + details)
         if str(f_default)!=str(NOT_PROVIDED) and not null: 
@@ -152,31 +154,15 @@ class DatabaseOperations:
         return None
     
 
-class DatabaseIntrospection:
+class DatabaseIntrospection(BaseDatabaseIntrospection):
     
     def __init__(self, connection):
         self.connection = connection
-    
-    def get_schema_fingerprint(self, cursor, app_name):
-        """it's important that the output of these methods don't change, otherwise
-        the hashes they produce will be inconsistent (and detection of existing
-        schemas will fail.  unless you are absolutely sure the output for ALL
-        valid inputs will remain the same, you should bump the version"""
-        schema = self.get_schema(cursor, app_name)
-        return 'fv2:'+ schema.get_hash()
-
-    def get_schema(self, cursor, app_name):
+   
+    def get_table_names(self, cursor):
         cursor.execute('SHOW TABLES;')
-        schema = DBSchema('DB schema')
-        table_names = [row[0] for row in cursor.fetchall()]
-        for table_name in table_names:
-            if not table_name.startswith(app_name):
-                continue    # skip tables not in this app
-            table = self.get_table(self, cursor, table_name)
-            schema.tables.append(table)
-            table.indexes += self.get_indexes(cursor, table_name)
-        return schema
-            
+        return [row[0] for row in cursor.fetchall()]
+    
     def get_indexes(self, cursor, table_name):
         indexes = []
         qn = self.connection.ops.quote_name
@@ -195,6 +181,7 @@ class DatabaseIntrospection:
                 name = column_name,
                 coltype = row[1], 
                 primary_key = False,
+                foreign_key = False,
                 unique = False,
                 allow_null = False,
                 max_length = None
@@ -214,7 +201,7 @@ class DatabaseIntrospection:
             
             # primary/foreign/unique key flag check goes here
             if row[3]=='PRI': dict['primary_key'] = True
-            # if row[3]=='FOR': dict['foreign_key'] = True
+            #if row[3]=='FOR': dict['foreign_key'] = True
             if row[3]=='UNI': dict['unique'] = True
             table.fields.append(info)
         # print table_name, column_name, dict

@@ -5,11 +5,8 @@ import sys
 import os
 
 def modeltests(app, test=None):
-    #First argument is settings file for your backend without .py extension
-    #set PYTHONPATH=../src;%PYTHONPATH%
     if not os.path.exists(app+".py"):
         raise Exception("Oops... settings file %s.py is not found" % app)
-    #IF EXIST settings.py echo Warning: settings.py will be removed!
     copy(app+".py", "settings.py")
     if test:
         print modeltest(test)

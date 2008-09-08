@@ -1,8 +1,8 @@
 from deseb.actions import NotNullColumnNeedsDefaultException
 from deseb.meta import DBField
 from deseb.meta import DBIndex
-from deseb.meta import DBSchema
 from deseb.meta import DBTable
+from deseb.backends.base import BaseDatabaseIntrospection
 
 class DatabaseOperations:
     def quote_value(self, s):
@@ -176,34 +176,16 @@ class DatabaseOperations:
         return None
     
 
-class DatabaseIntrospection:
+class DatabaseIntrospection(BaseDatabaseIntrospection):
     
     def __init__(self, connection):
         self.connection = connection
     
-    def get_schema_fingerprint(self, cursor, app_name):
-        schema = self.get_schema(cursor, app_name)
-        return 'fv2:'+ schema.get_hash()
-    
-    def get_schema(self, cursor, app_name):
-        schema = DBSchema('DB schema')
+    def get_table_names(self, cursor):
         cursor.execute('SELECT table_name FROM information_schema.tables')
-        table_names = [row[0] for row in cursor.fetchall()]
-        for table_name in table_names:
-            if not table_name.startswith(app_name):
-                continue    # skip tables not in this app
-            table = self.get_table(cursor, table_name)
-            schema.tables.append(table)
-            table.indexes += self.get_indexes(cursor, table_name)
-        return schema
-        
+        return [row[0] for row in cursor.fetchall()]
+    
     def get_indexes(self, cursor, table_name):
-        """
-        Returns a dictionary of fieldname -> infodict for the given table,
-        where each infodict is in the format:
-            {'primary_key': boolean representing whether it's the primary key,
-             'unique': boolean representing whether it's a unique index}
-        """
         # This query retrieves each index on the given table, including the
         # first associated field name
         cursor.execute("""
@@ -241,7 +223,7 @@ class DatabaseIntrospection:
             column = DBField(
                 name = row[0], 
                 primary_key = False,
-                # foreign_key = False,
+                foreign_key = False,
                 unique = False,
                 allow_null = False,
                 max_length = None
@@ -271,11 +253,11 @@ class DatabaseIntrospection:
         for row in cursor.fetchall():
             col = table.get_field(row[2]).traits
             if row[1]=='p': col['primary_key'] = True
-            #if row[1]=='f': col['foreign_key'] = True
+            if row[1]=='f': col['foreign_key'] = True
             if row[1]=='u': col['unique']= True
-        # for field in table.fields:
-        #     if field.primary_key:
-        #         field.foreign_key = False
+        for field in table.fields:
+            if field.primary_key:
+                field.foreign_key = False
         # default value check
         cursor.execute("select pg_attribute.attname, adsrc from pg_attrdef, pg_attribute "
                        "WHERE pg_attrdef.adrelid=pg_attribute.attrelid and "
@@ -288,5 +270,4 @@ class DatabaseIntrospection:
             if row[1][0:7] == 'nextval': 
                 if row[1].startswith("nextval('") and row[1].endswith("'::regclass)"):
                     col['sequence'] = row[1][9:-12]
-
         return table

@@ -1,8 +1,9 @@
 from deseb.actions import fixed_sql_model_create as model_create
 from deseb.actions import get_field_type
 from deseb.meta import DBField
-from deseb.meta import DBSchema
+from deseb.meta import DBIndex
 from deseb.meta import DBTable
+from deseb.backends.base import BaseDatabaseIntrospection
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
@@ -131,35 +132,42 @@ class DatabaseOperations:
                     return app, model
         return None, None
     
-class DatabaseIntrospection:
+class DatabaseIntrospection(BaseDatabaseIntrospection):
     
     def __init__(self, connection):
         self.connection = connection
     
-    def get_schema_fingerprint(self, cursor, app_name):
-        schema = self.get_schema(cursor, app_name)
-        return 'fv2:'+ schema.get_hash()
-    
-    def get_schema(self, cursor, app_name):
-        schema = DBSchema('DB schema')
+    def get_table_names(self, cursor):
         cursor.execute("select * from sqlite_master where type='table' order by name;")
-        table_names = [row[1] for row in cursor.fetchall()]
-        for table_name in table_names:
-            if not table_name.startswith(app_name):
-                continue    # skip tables not in this app
-            table = self.get_table(cursor, table_name)
-            schema.tables.append(table)
-            #table.indexes += self.get_indexes(cursor, table_name)
-        return schema
+        return [row[1] for row in cursor.fetchall()]
 
+    def get_indexes(self, cursor, table_name):
+        qn = self.connection.ops.quote_name
+        cursor.execute("PRAGMA index_list(%s)" % qn(table_name))
+        indexes = []
+        for row in cursor.fetchall():
+            #print table_name, row
+            if row[2] == 1: continue # sqlite_autoindex_* indexes
+            index = DBIndex(
+                pk = False,
+                name = row[1],
+                unique = False 
+            )
+            indexes.append(index)
+            # cursor.execute("PRAGMA index_info(%s)" % qn(row[1]))
+            # print table_name, row, '=>', cursor.fetchall()
+        return indexes
+    
     def get_table(self, cursor, table_name):
         table = DBTable(name = table_name)
         qn = self.connection.ops.quote_name
+        
         cursor.execute("PRAGMA table_info(%s)" % qn(table_name))
         for row in cursor.fetchall():
             column = DBField(
                 name = row[1], 
                 primary_key = False, 
+                foreign_key = False,
                 unique = False, 
                 allow_null = False, 
                 max_length = None
@@ -186,6 +194,6 @@ class DatabaseIntrospection:
                 colname = column_description.split('"',2)[1]
                 col = table.get_field(colname).traits
                 col['primary_key'] = ' PRIMARY KEY' in column_description
-                #col['foreign_key'] = ' REFERENCES ' in column_description
-                col['unique'] = ' UNIQUE' in column_description
+                col['foreign_key'] = ' REFERENCES ' in column_description
+                col['unique'] = ' UNIQUE' in column_description or ' UNIQUE' in column_description  
         return table
