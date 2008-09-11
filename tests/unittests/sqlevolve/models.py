@@ -12,9 +12,9 @@ GENDER_CHOICES = (
 )
 
 class Person(models.Model):
-    name = models.CharField(maxlength=20, default="")
-    gender = models.CharField(maxlength=1, choices=GENDER_CHOICES, default=False)
-    gender2 = models.CharField(maxlength=1, choices=GENDER_CHOICES, aka='gender_old')
+    name = models.CharField(max_length=20, default="")
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, default=False)
+    gender2 = models.CharField(max_length=1, choices=GENDER_CHOICES, aka='gender_old')
     ssn = models.IntegerField(default=111111111)
 
     def __unicode__(self):
@@ -24,7 +24,7 @@ class Person(models.Model):
         aka = ('PersonOld', 'OtherBadName')
 
 class Muebles(models.Model):
-    tipo = models.CharField(maxlength=40, default="woot")
+    tipo = models.CharField(max_length=40, default="woot")
     # new fields
     fecha_publicacion = models.DateTimeField('date published', null=True)
 
@@ -32,8 +32,8 @@ class C(models.Model):
     "all with akas"
     c001 = models.AutoField(primary_key=True, aka='xxx')
     c002 = models.BooleanField(aka='xxx')
-    c003 = models.CharField(maxlength='256', aka='xxx')
-    c004 = models.CommaSeparatedIntegerField(maxlength='256', aka='xxx')
+    c003 = models.CharField(max_length='256', aka='xxx')
+    c004 = models.CommaSeparatedIntegerField(max_length='256', aka='xxx')
     c005 = models.DateField(aka='xxx')
     c006 = models.DateTimeField(aka='xxx')
     if deseb.version == 'trunk':
@@ -49,7 +49,7 @@ class C(models.Model):
     c014 = models.ImageField(upload_to='/tmp', aka='xxx')
     c015 = models.IntegerField(aka='xxx')
     c016 = models.NullBooleanField(aka='xxx')
-#   c017 = models.OrderingField(maxlength='256')
+#   c017 = models.OrderingField(max_length='256')
     c018 = models.PhoneNumberField(aka='xxx')
     c019 = models.PositiveIntegerField(aka='xxx')
     c020 = models.PositiveSmallIntegerField(aka='xxx')

@@ -4,6 +4,9 @@ import os
 
 SHOW_CMD = False
 
+def copy_models(dir, version):
+    copy(dir+"/models.py."+version, dir+"/models.py")
+
 def run(cmd, *args, **kw):
     os.environ['PATH'] = '../src:'+os.environ['PATH']
     runnable = "%s %s" % (cmd, " ".join(args))
@@ -12,9 +15,6 @@ def run(cmd, *args, **kw):
         runnable = runnable[7:]
     _in, out, err = os.popen3(runnable)
     return out.read(), err.read()
-
-def copy_models(dir, version):
-    copy(dir+"/models.py."+version, dir+"/models.py")
 
 def runpe(cmd, *args):
     out, err = run(cmd, *args)

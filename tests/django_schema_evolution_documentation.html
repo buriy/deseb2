@@ -21,15 +21,15 @@
 		<td valign="top"><pre><code>from django.db import models
 
 class Poll(models.Model):
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
-    author = models.CharField(maxlength=200)
+    author = models.CharField(max_length=200)
     def __str__(self):
         return self.question
     
 class Choice(models.Model):
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     votes = models.IntegerField()
     def __str__(self):
         return self.choice
@@ -37,9 +37,9 @@ class Choice(models.Model):
 		<td valign="top"><pre><code>from django.db import models
 
 class Poll(models.Model):
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
-    author = models.CharField(maxlength=200)
+    author = models.CharField(max_length=200)
     def __str__(self):
         return self.question
     
@@ -48,7 +48,7 @@ class Poll(models.Model):
 
 class Choice(models.Model):
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     votes = models.IntegerField()
     def __str__(self):
         return self.choice
@@ -97,15 +97,15 @@ class Poll(models.Model):
     """this model originally had fields named pub_date and the_author.  you can use 
     either a str or a tuple for the aka value.  (tuples are used if you have changed 
     its name more than once)"""
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published', aka='publish_date')
-    the_author = models.CharField(maxlength=200, aka='the_author')
+    the_author = models.CharField(max_length=200, aka='the_author')
     def __str__(self):
         return self.question
     
 class Choice(models.Model):
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     votes = models.IntegerField(aka='votes')
     def __str__(self):
         return self.choice</code></pre></td>
@@ -115,15 +115,15 @@ class Poll(models.Model):
     """this model originally had fields named pub_date and the_author.  you can use
     either a str or a tuple for the aka value.  (tuples are used if you have changed
     its name more than once)"""
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     published_date = models.DateTimeField('date published', aka=('pub_date', 'publish_date'))
-    author = models.CharField(maxlength=200, aka='the_author')
+    author = models.CharField(max_length=200, aka='the_author')
     def __str__(self):
         return self.question
     
 class Choice(models.Model):
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     number_of_votes = models.IntegerField(aka='votes')
     def __str__(self):
         return self.choice</code></pre></td>
@@ -149,16 +149,16 @@ COMMIT;
 		<td valign="top"><pre><code>from django.db import models
 
 class Poll(models.Model):
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
-    author = models.CharField(maxlength=200)
+    author = models.CharField(max_length=200)
     def __str__(self):
         return self.question
     
 class Choice(models.Model):
     "the original name for this model was 'Choice'"
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     number_of_votes = models.IntegerField()
     def __str__(self):
         return self.choice
@@ -167,16 +167,16 @@ class Choice(models.Model):
 		<td valign="top"><pre><code>from django.db import models
 
 class Poll(models.Model):
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
-    author = models.CharField(maxlength=200)
+    author = models.CharField(max_length=200)
     def __str__(self):
         return self.question
     
 class Option(models.Model):
     "the original name for this model was 'Choice'"
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     # show that field name changes work too
     votes = models.IntegerField(aka='number_of_votes')
     def __str__(self):
@@ -204,16 +204,16 @@ COMMIT;
 		<td valign="top"><pre><code>from django.db import models
 
 class Poll(models.Model):
-    question = models.CharField(maxlength=200)
+    question = models.CharField(max_length=200)
     pub_date = models.DateTimeField('date published')
-    author = models.CharField(maxlength=200)
+    author = models.CharField(max_length=200)
     def __str__(self):
         return self.question
     
 class Choice(models.Model):
     "the original name for this model was 'Choice'"
     poll = models.ForeignKey(Poll)
-    choice = models.CharField(maxlength=200)
+    choice = models.CharField(max_length=200)
     votes = models.IntegerField()
     def __str__(self):
         return self.choice
@@ -223,14 +223,14 @@ class Foo(models.Model):
         ('M', 'Male'),
         ('F', 'Female'),
     )
-    gender = models.CharField(maxlength=1, choices=GENDER_CHOICES)
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
 </code></pre></td>
 		<td valign="top"><pre><code>from django.db import models
 
 class Poll(models.Model):
-    question = models.CharField(maxlength=100)
+    question = models.CharField(max_length=100)
     pub_date = models.DateTimeField('date published')
-    author = models.CharField(maxlength=200)
+    author = models.CharField(max_length=200)
     def __str__(self):
         return self.question
     
@@ -238,7 +238,7 @@ class Choice(models.Model):
     "the original name for this model was 'Choice'"
     poll = models.ForeignKey(Poll)
     # make sure aka still works with a flag change
-    option = models.CharField(maxlength=400, aka='choice')
+    option = models.CharField(max_length=400, aka='choice')
     votes = models.IntegerField()
     votes2 = models.IntegerField() # make sure column adds still work
     def __str__(self):
@@ -249,8 +249,8 @@ class Foo(models.Model):
         ('M', 'Male'),
         ('F', 'Female'),
     )
-    gender = models.CharField(maxlength=1, choices=GENDER_CHOICES, db_index=True)
-    gender2 = models.CharField(maxlength=1, null=True, unique=True)
+    gender = models.CharField(max_length=1, choices=GENDER_CHOICES, db_index=True)
+    gender2 = models.CharField(max_length=1, null=True, unique=True)
         </code></pre></td>
 	</tr>
 	<tr>
