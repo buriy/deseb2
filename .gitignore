@@ -2,6 +2,7 @@ src/django
 *.bak
 *.pyc
 */.svn/
+*.actual
 tests/*/models.py
 tests/default.db
 tests/default-init.db

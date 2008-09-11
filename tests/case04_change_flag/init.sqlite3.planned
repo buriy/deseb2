@@ -1,0 +1,19 @@
+CREATE TABLE "case04_change_flag_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+CREATE TABLE "case04_change_flag_foo" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "gender" varchar(1) NOT NULL
+)
+;
+CREATE TABLE "case04_change_flag_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case04_change_flag_poll" ("id"),
+    "choice" varchar(200) NOT NULL,
+    "votes" integer NOT NULL
+)
+;

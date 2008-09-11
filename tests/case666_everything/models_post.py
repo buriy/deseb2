@@ -1,0 +1,109 @@
+from django.db import models
+import datetime
+import deseb
+
+class rA(models.Model):
+    "base with min flags"
+    c001 = models.AutoField(primary_key=True)
+    c002 = models.BooleanField()
+    c003 = models.CharField(max_length='256')
+    c004 = models.CommaSeparatedIntegerField(max_length='256')
+    c005 = models.DateField()
+    c006 = models.DateTimeField()
+    if deseb.version == 'trunk':
+        c007 = models.DecimalField(decimal_places=5, max_digits=10, default='1.2')
+    c008 = models.EmailField()
+    c010 = models.FileField(upload_to='/tmp')
+    c011 = models.FilePathField()
+    if deseb.version == 'trunk':
+        c012 = models.FloatField()
+    else:
+        c012 = models.FloatField(decimal_places=5, max_digits=10)
+    c013 = models.IPAddressField()
+    c014 = models.ImageField(upload_to='/tmp')
+    c015 = models.IntegerField()
+    c016 = models.NullBooleanField()
+#    c017 = models.OrderingField(max_length='256')
+    c018 = models.PhoneNumberField()
+    c019 = models.PositiveIntegerField()
+    c020 = models.PositiveSmallIntegerField()
+    c021 = models.SlugField()
+    c022 = models.SmallIntegerField()
+    c023 = models.TextField()
+    c024 = models.TimeField()
+    c025 = models.URLField()
+    c026 = models.USStateField()
+    c027 = models.XMLField()
+    a002 = models.BooleanField(default=False)
+    a003 = models.CharField(max_length='256', default='x')
+    a004 = models.CommaSeparatedIntegerField(max_length='256', default='1')
+    a005 = models.DateField(default=datetime.datetime.now())
+    a006 = models.DateTimeField(default=datetime.datetime.now())
+    if deseb.version == 'trunk':
+        a007 = models.DecimalField(decimal_places=5, max_digits=10, default=2)
+    a008 = models.EmailField(default='x')
+    a010 = models.FileField(upload_to='/tmp', default='')
+    a011 = models.FilePathField(default='x')
+    if deseb.version == 'trunk':
+        a012 = models.FloatField(default=2.0)
+    else:
+        a012 = models.FloatField(default=2.0, decimal_places=5, max_digits=10)
+    a013 = models.IPAddressField(default='0.0.0.0')
+    a014 = models.ImageField(upload_to='/tmp', default='')
+    a015 = models.IntegerField(default='0')
+    a016 = models.NullBooleanField()
+#    a017 = models.OrderingField(max_length='256')
+    a018 = models.PhoneNumberField(default='555-867-5309')
+    a019 = models.PositiveIntegerField(default=7)
+    a020 = models.PositiveSmallIntegerField(default=6)
+    a021 = models.SlugField(default='x')
+    a022 = models.SmallIntegerField(default=-2)
+    a023 = models.TextField(default='x')
+    a024 = models.TimeField(default=datetime.datetime.now())
+    a025 = models.URLField(default='x')
+    a026 = models.USStateField(default='TX')
+    a027 = models.XMLField(default='x')
+    class Meta:
+        aka = 'A'
+
+class rB(models.Model):
+    "base with max flags"
+    r001 = models.AutoField(primary_key=True, null=True, blank=True, aka='c001')
+    r002 = models.BooleanField(default=False, null=True, blank=True, aka='c002')
+    r003 = models.CharField(max_length='256', default='x', null=True, blank=True, aka='c003')
+    r004 = models.CommaSeparatedIntegerField(max_length='256', default='1', null=True, blank=True, aka='c004')
+    r005 = models.DateField(default=datetime.datetime.now(), null=True, blank=True, aka='c005')
+    r006 = models.DateTimeField(default=datetime.datetime.now(), null=True, blank=True, aka='c006')
+    if deseb.version == 'trunk':
+        r007 = models.DecimalField(decimal_places=5, max_digits=10, default=2, null=True, blank=True, aka='c007')
+    r008 = models.EmailField(default='x', null=True, blank=True, aka='c008')
+    r010 = models.FileField(upload_to='/tmp', null=True, blank=True, aka='c010')
+    r011 = models.FilePathField(default='x', null=True, blank=True, aka='c011')
+    if deseb.version == 'trunk':
+        c012 = models.FloatField(default=2.0, null=True, blank=True, aka='c012')
+    else:
+        c012 = models.FloatField(decimal_places=5, max_digits=10, default=2.0, null=True, blank=True, aka='c012')
+    r013 = models.IPAddressField(default='0.0.0.0', null=True, blank=True, aka='c013')
+    r014 = models.ImageField(upload_to='/tmp', null=True, blank=True, aka='c014')
+    r015 = models.IntegerField(default=2, null=True, blank=True, aka='c015')
+    r016 = models.NullBooleanField(default=True, null=True, blank=True, aka='c016')
+#    r017 = models.OrderingField(max_length='256', null=True, blank=True, aka='c017')
+    r018 = models.PhoneNumberField(default='555-867-5309', null=True, blank=True, aka='c018')
+    r019 = models.PositiveIntegerField(default=7, null=True, blank=True, aka='c019')
+    r020 = models.PositiveSmallIntegerField(default=6, null=True, blank=True, aka='c020')
+    r021 = models.SlugField(default='x', null=True, blank=True, aka='c021')
+    r022 = models.SmallIntegerField(default=-2, null=True, blank=True, aka='c022')
+    r023 = models.TextField(default='x', null=True, blank=True, aka='c023')
+    r024 = models.TimeField(default=datetime.datetime.now(), null=True, blank=True, aka='c024')
+    r025 = models.URLField(default='x', null=True, blank=True, aka='c025')
+    r026 = models.USStateField(default='TX', null=True, blank=True, aka='c026')
+    r027 = models.XMLField(default='x', null=True, blank=True, aka='c027')
+    
+    class Meta:
+        aka = 'B'
+
+class rC(models.Model):
+    "all with akas"
+
+    class Meta:
+        aka = 'C'

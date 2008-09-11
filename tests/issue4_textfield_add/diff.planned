@@ -1,0 +1,3 @@
+Diff: Current DB => Actual issue4_textfield_add.models
+  Table "issue4_textfield_add_topic"
+  + Field "content"

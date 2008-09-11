@@ -1,0 +1,14 @@
+CREATE TABLE "case02_rename_field_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "the_author" varchar(200) NOT NULL
+)
+;
+CREATE TABLE "case02_rename_field_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case02_rename_field_poll" ("id"),
+    "choice" varchar(200) NOT NULL,
+    "votes" integer NOT NULL
+)
+;

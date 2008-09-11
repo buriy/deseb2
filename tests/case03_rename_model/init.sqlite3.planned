@@ -1,0 +1,14 @@
+CREATE TABLE "case03_rename_model_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+CREATE TABLE "case03_rename_model_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case03_rename_model_poll" ("id"),
+    "choice" varchar(200) NOT NULL,
+    "number_of_votes" integer NOT NULL
+)
+;
