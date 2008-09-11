@@ -46,6 +46,14 @@ def get_operations_and_introspection_classes(style):
     introspection = backend.DatabaseIntrospection(connection)
     return ops, introspection
 
+def fixed_sql_model_create(model, known_models, style):
+    from django.db import connection
+    if version == 'trunk':
+        return connection.creation.sql_create_model(model, style, known_models)
+        return management.sql_model_create(model, style, known_models)
+    else:
+        return management._get_sql_model_create(model, known_models)
+
 if __name__ == "__main__":
     import doctest
     doctest.testmod

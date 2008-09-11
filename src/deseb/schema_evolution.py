@@ -3,6 +3,7 @@ from deseb.common import color
 from deseb.common import get_operations_and_introspection_classes
 from deseb.common import management
 from deseb.builder import build_model_schema
+from deseb.storage import get_model_aka
 import os, sys, datetime, traceback
 
 DEBUG = False
@@ -16,7 +17,7 @@ def get_installed_tables(app):
     add_tables = set()
     for model in model_schema.tables:
         add_tables.add(model.name)
-        add_tables.update(model.aka)
+        add_tables.update(get_model_aka(model))
     return add_tables
 
 def get_sql_evolution_detailed(app, style, notify):
@@ -164,13 +165,13 @@ def save_managed_evolution(app, commands, schema_fingerprint, new_schema_fingerp
     file = open(se_file, 'w')
     file.writelines(contents)
     
-def evolvediff(app, interactive=True, do_save=False, do_notify=True, managed_upgrade_only=False):
+def evolvediff(app, interactive=True, do_save=False, verbose=False, managed_upgrade_only=False):
     from django.db import connection
     cursor = connection.cursor()
     style = color.no_style()
-    show_evolution_plan(cursor, app, style)
+    return show_evolution_plan(cursor, app, style)
 
-def evolvedb(app, interactive=True, do_save=False, do_notify=False, managed_upgrade_only=False):
+def evolvedb(app, interactive=True, do_save=False, verbose=False, managed_upgrade_only=False):
     from django.db import connection
     cursor = connection.cursor()
 
@@ -180,9 +181,9 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=False, managed_upgr
     
     seen_schema_fingerprints = set()
     
-    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, do_notify)
+    fingerprints, evolutions = get_fingerprints_evolutions_from_app(app, style, verbose)
     if fingerprints and evolutions:
-        if do_notify:
+        if verbose:
             print 'deseb: %s.schema_evolution module found (%i fingerprints, %i evolutions)' % \
                     (app_name, len(fingerprints), len(evolutions))
 
@@ -192,17 +193,17 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=False, managed_upgr
     
         schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name, get_installed_tables(app))
         schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade = \
-                    get_managed_evolution_options(app, schema_fingerprint, style, do_notify)
+                    get_managed_evolution_options(app, schema_fingerprint, style, verbose)
         if fingerprints and evolutions:
             if schema_recognized:
-                if do_notify or interactive: 
+                if verbose or interactive: 
                     print "deseb: fingerprint for '%s' is '%s' (recognized)" % (app_name, schema_fingerprint)
             else:
-                if do_notify or interactive: 
+                if verbose or interactive: 
                     print "deseb: fingerprint for '%s' is '%s' (unrecognized)" % (app_name, schema_fingerprint)
         managed_upgrade = schema_recognized and available_upgrades and best_upgrade and best_upgrade[3]>0
         if managed_upgrade:
-            if do_notify or interactive: 
+            if verbose or interactive: 
                 print "\t and a managed schema upgrade to '%s' is available:" % best_upgrade[1], best_upgrade[3]
             commands_color = commands = best_upgrade[2]
         elif not managed_upgrade_only:
@@ -257,10 +258,10 @@ def evolvedb(app, interactive=True, do_save=False, do_notify=False, managed_upgr
             
         if managed_upgrade:
             if schema_fingerprint==best_upgrade[1]:
-                if do_notify: 
+                if verbose: 
                     print '\tfingerprint verification successful'
             else:
-                if do_notify: 
+                if verbose: 
                     print "\tfingerprint verification failed (is '%s'; was expecting '%s')" % \
                             (schema_fingerprint, best_upgrade[1])
                 break

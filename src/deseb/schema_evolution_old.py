@@ -207,7 +207,7 @@ def compare_field_length(f, column_flags):
 def get_sql_evolution_check_for_changed_field_flags(klass, old_table_name, style):
     ops, introspection = get_operations_and_introspection_classes(style)
     
-    from django.db import connection.creation, connection
+    from django.db import connection
     data_types = connection.creation.data_types
     cursor = connection.cursor()
 #    introspection = ops = get_ops_class(connection)

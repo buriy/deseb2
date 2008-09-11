@@ -10,6 +10,8 @@ except NameError: from sets import Set as set   # Python 2.3 fallback
 
 NOT_PROVIDED = 'django.db.models.fields.NOT_PROVIDED'
 
+class RebuildTableNeededException(Exception): pass
+
 class DatabaseOperations:
     def quote_value(self, s):
         if type(s) is bool:
@@ -33,8 +35,13 @@ class DatabaseOperations:
         return [kw('ALTER TABLE ') + tqn(old_table_name) +
                 kw(' RENAME TO ') + tqn(table_name) + ';']
     
-    def get_rebuild_table_sql(self, table_name, indexes, old_columns, renamed_columns):
-        # sqlite doesn't support column renames, so we fake it
+    def get_rebuild_table_sql(self, old_table, new_table):
+        table_name = new_table.name
+        old_columns = dict([(f.name, f) for f in new_table.fields])
+        old_column_names = old_columns.keys()
+        renamed_columns = [f for f in old_table.fields if not f.name in old_column_names]
+
+        # used instead of column renames, additions and removals
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fld = self.style.SQL_FIELD
@@ -89,21 +96,29 @@ class DatabaseOperations:
         output.append('-- FYI: sqlite does not support changing columns')
         return output
     
-    def get_add_column_sql(self, table_name, col_name, col_type, null, unique, primary_key, default):
+    def get_add_column_sql(self, table, info, col_type, default):
         # versions >= sqlite 3.2.0, see http://www.sqlite.org/lang_altertable.html
-        output = []
+        table_name = table.name
+        col_name = info.name
+        null = info.allow_null
+        unique = info.unique
+        primary_key = info.primary_key
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fct = self.style.SQL_COLTYPE 
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        if unique or primary_key or not null:
-            output.append('-- FYI: sqlite does not support adding primary keys or unique or not null fields')
+        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
+        if unique or primary_key or ((not null) and (unicode(default) is NOT_PROVIDED)):
+            raise RebuildTableNeededException("sqlite does not support adding primary keys or unique or not null fields")
         else:
-            output.append(' '.join(
-            [ kw('ALTER TABLE'), tqn(table_name), 
-              kw('ADD COLUMN'), fqn(col_name), fct(col_type), 'NULL']))
-        return output
+            null_sql = null and 'NULL' or 'NOT NULL'
+            parts = [ 
+                kw('ALTER TABLE'), tqn(table_name), 
+                kw('ADD COLUMN'), fqn(col_name), fct(col_type), null_sql]
+            if not null:
+                parts += ['DEFAULT', fqv(default)]
+        return [' '.join(parts)]
     
     def get_drop_column_sql(self, table_name, col_name):
         output = []

@@ -118,7 +118,13 @@ class DatabaseOperations:
             
         return output
     
-    def get_add_column_sql(self, table_name, col_name, col_type, null, unique, primary_key, f_default):
+    def get_add_column_sql(self, modelinfo, info, f_default):
+        table_name = modelinfo.name, 
+        col_name = info.name
+        col_type = info.coltype
+        null = info.allow_null
+        unique = info.unique
+        primary_key = info.primary_key
         from django.db.models.fields import NOT_PROVIDED
         output = []
         qn = self.connection.ops.quote_name

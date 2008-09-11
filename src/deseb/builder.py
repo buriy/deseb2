@@ -7,6 +7,7 @@ from deseb.meta import DBIndex
 from deseb.meta import TreeDiff
 from deseb.common import get_operations_and_introspection_classes
 from django.contrib.contenttypes.generic import GenericRelation
+from deseb.storage import get_model_aka, get_field_aka
 
 try:
     import django.core.management.sql as management
@@ -45,7 +46,7 @@ def compare_field_length(f, column_flags):
     return(not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
           (not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
 
-def build_model_flags(f):
+def build_model_flags(model, f):
     info = DBField(
         name = f.attname,
         allow_null = f.null,
@@ -54,15 +55,15 @@ def build_model_flags(f):
         primary_key = f.primary_key,
         unique = f.unique and not f.primary_key,
         max_length = get_max_length(f),
-        aka = f.aka)
+        aka = get_field_aka(model, f.name))
     return info
 
-def build_model_table(app, model):
+def build_model_table(_app, model):
     table_name = model._meta.db_table
-    table = DBTable(name = table_name)
+    table = DBTable(name = table_name, aka = get_model_aka(model))
     for f in model._meta.local_fields:
         #existing_relations = introspection.get_relations(cursor,db_table)
-        flags = build_model_flags(f)
+        flags = build_model_flags(model, f)
         table.fields.append(flags)
         if f.db_index and not f.primary_key and not f.unique:
             name = '%s_%s' % (table_name, f.column)

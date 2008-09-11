@@ -24,6 +24,7 @@ def db_type(self):
     return data_types.get(internal_type,'') % self.__dict__
 
 def add_aka_support():
+    #raise "Not supported anymore"
     global added_aka_support
     if added_aka_support: return
     else: added_aka_support = True
@@ -93,7 +94,7 @@ def add_aka_support():
     
 def add_management_commands(func):
     def inner(*args, **kwargs):
-        add_aka_support()
+        #add_aka_support()
         rv = func(*args, **kwargs)
         rv['evolvedb'] = 'deseb'
         rv['evolvediff'] = 'deseb'

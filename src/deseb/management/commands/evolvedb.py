@@ -7,7 +7,7 @@ class Command(AppCommand):
             help='Tells Django to NOT prompt the user for input of any kind.'),
         make_option('--dont-save', action='store_false', dest='do_save', default=True,
             help='Don\'t save evolution to schema_evolution.py near to models.py.'),
-        make_option('--dont-notify', action='store_false', dest='do_notify', default=True,
+        make_option('--verbose', action='store_false', dest='verbose', default=False,
             help='Don\'t save evolution to schema_evolution.py near to models.py.'),
         make_option('--managed-upgrades-only', action='store_true', dest='managed_upgrade_only', default=False,
             help='Only use upgrades found in app_name/schema_evolution.py (recommended for deployments)'),
@@ -40,5 +40,5 @@ See: http://code.google.com/p/deseb/wiki/Usage"""
         deseb.schema_evolution.evolvedb(app, 
             options.get('interactive', True), 
             options.get('do_save', True),
-            options.get('do_notify', False),
+            options.get('verbose', False),
             options.get('managed_upgrade_only', False))
