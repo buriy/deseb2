@@ -1,6 +1,17 @@
-ALTER TABLE "case01_add_field_choice" ADD COLUMN "content" text NOT NULL DEFAULT ''
-ALTER TABLE "case01_add_field_choice" ADD COLUMN "creatorIp" char(15) NULL
-ALTER TABLE "case01_add_field_choice" ADD COLUMN "hasSomething" bool NOT NULL DEFAULT 'f'
-ALTER TABLE "case01_add_field_choice" ADD COLUMN "votes2" integer NOT NULL DEFAULT 0
-ALTER TABLE "case01_add_field_choice" ADD COLUMN "votes3" integer NOT NULL DEFAULT 5
-ALTER TABLE "case01_add_field_poll" ADD COLUMN "pub_date2" datetime NULL
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case01_add_field_choice" RENAME TO "case01_add_field_choice_1337_TMP";
+CREATE TABLE "case01_add_field_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case01_add_field_poll" ("id"),
+    "choice" varchar(200) NOT NULL,
+    "votes" integer NOT NULL,
+    "votes2" integer NOT NULL,
+    "hasSomething" bool NOT NULL,
+    "creatorIp" char(15) NULL,
+    "votes3" integer NOT NULL,
+    "content" text NOT NULL
+)
+;
+INSERT INTO "case01_add_field_choice" SELECT "id","poll_id","choice","votes",'','','','','' FROM "case01_add_field_choice_1337_TMP";
+DROP TABLE "case01_add_field_choice_1337_TMP";
+ALTER TABLE "case01_add_field_poll" ADD COLUMN "pub_date2" datetime NULL;

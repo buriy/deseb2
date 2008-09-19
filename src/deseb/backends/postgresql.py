@@ -3,6 +3,8 @@ from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
 from deseb.backends.base import BaseDatabaseIntrospection
+from deseb.common import SQL, NotProvided
+from deseb.builder import get_field_type
 
 class DatabaseOperations:
     def quote_value(self, s):
@@ -20,163 +22,146 @@ class DatabaseOperations:
     
     pk_requires_unique = False
 
-    def get_change_table_name_sql(self, table_name, old_table_name):
-        output = []
+    def get_change_table_name_sql(self, left, right):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        output.append(
-            kw('ALTER TABLE ') + tqn(old_table_name) +
-            kw(' RENAME TO ') + tqn(table_name) + ';')
-        return output
+        return SQL(
+            kw('ALTER TABLE ') + tqn(left.name) +
+            kw(' RENAME TO ') + tqn(right.name) + ';')
     
-    def get_change_column_name_sql(self, table_name, indexes, old_col_name, new_col_name, col_type, f):
+    def get_change_column_name_sql(self, table, left, right):
         # TODO: only supports a single primary key so far
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        for key in indexes.keys():
-            if indexes[key]['primary_key']: pk_name = key
-        output = []
-        output.append(
-            kw('ALTER TABLE ') + tqn(table_name)
-            + kw(' RENAME COLUMN ') + fqn(old_col_name)
-            + kw(' TO ') + fqn(new_col_name) + ';')
-        return output
+        return SQL(
+            kw('ALTER TABLE ') + tqn(table.name)
+            + kw(' RENAME COLUMN ') + fqn(left.name)
+            + kw(' TO ') + fqn(right.name) + ';')
 
-    def get_change_column_def_sql(self, db_flags, model_flags, updates, table_name, f_default):
-        col_name = model_flags.name
-        col_type = model_flags.coltype
-        from django.db.models.fields import NOT_PROVIDED
-        output = []
+    def get_change_column_def_sql(self, table, left, right, updates):
+        table_name = table.name
+        col_name = right.name
+        sql = SQL()
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fct = self.style.SQL_COLTYPE 
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
-        if updates['update_type']:
-            output.append(
+        if 'coltype' in updates:
+            sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) +
-                kw(' ADD COLUMN ') + fqn(col_name+'_tmp') + ' ' + fct(col_type) + ';')
-            output.append(
+                kw(' ADD COLUMN ') + fqn(col_name+'_tmp') + ' ' + fct(right.dbtype) + ';')
+            sql.append(
                 kw('UPDATE ') + tqn(table_name) + 
                 kw(' SET ') + fqn(col_name+'_tmp') + 
                 ' = ' + fqn(col_name) + ';')
-            output.append(
+            sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + 
                 kw(' DROP COLUMN ') + fqn(col_name) + ';')
-            output.append(
+            sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + 
                 kw(' RENAME COLUMN ') + fqn(col_name+'_tmp') + 
                 kw(' TO ') + fqn(col_name) + ';')
-        elif updates['update_length']:
-            output.append(
+        elif left.max_length != right.max_length:
+            sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + 
                 kw(' ALTER COLUMN ') + fqn(col_name) + 
-                kw(' TYPE ')+ fct(col_type) + ';')
-
-        if updates['update_sequences'] and db_flags and db_flags.traits.has_key('sequence'):
-            seq_name = db_flags.sequence
-            seq_name_correct = model_flags.sequence
+                kw(' TYPE ')+ fct(right.dbtype) + ';')
+        if 'sequence' in updates:
+            seq_name = left.sequence
+            seq_name_correct = right.sequence
             if seq_name != seq_name_correct:
-                output.append(
+                sql.append(
                     kw('ALTER TABLE ') + tqn(seq_name) +
                     kw(' RENAME TO ') + tqn(seq_name_correct)+';')
-                output.append(
+                sql.append(
                     kw('ALTER TABLE ') + tqn(table_name) +
                     kw(' ALTER COLUMN ') + tqn(col_name) + 
                     kw(' SET DEFAULT nextval(')+
                     fqv(seq_name_correct)+'::regclass);')
 
-        if updates['update_null']:
-            if str(f_default)==str(NOT_PROVIDED) and not model_flags.allow_null: 
+        if 'null' in updates:
+            if right.default is NotProvided and not right.allow_null: 
                 details = 'column "%s" of table "%s"' % (col_name, table_name)
                 raise NotNullColumnNeedsDefaultException("when modified " + details)
-            if str(f_default)!=str(NOT_PROVIDED) and not model_flags.allow_null: 
-                output.append(
+            if not right.default is NotProvided and not right.allow_null: 
+                sql.append(
                     kw('UPDATE ') + tqn(table_name) +
-                    kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) + 
+                    kw(' SET ') + fqn(col_name) + ' = ' + fqv(right.default) + 
                     kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;'))
-            if not model_flags.allow_null:
-                output.append(
+            if not right.allow_null:
+                sql.append(
                     kw('ALTER TABLE ') + tqn(table_name) +
                     kw(' ALTER COLUMN ') + fqn(col_name) +
                     kw(' SET NOT NULL;'))
-            elif not updates['update_type']:
-                output.append(
+            elif not 'update_type' in updates:
+                sql.append(
                     kw('ALTER TABLE ') + tqn(table_name) +
                     kw(' ALTER COLUMN ') + fqn(col_name) +
                     kw(' DROP NOT NULL;'))
 
-        if updates['update_unique'] and model_flags.unique:
-            output.append(kw('ALTER TABLE ') + tqn(table_name) +
+        if 'unique' in updates and right.unique:
+            sql.append(kw('ALTER TABLE ') + tqn(table_name) +
                 kw(' ADD CONSTRAINT ') +
                 table_name + '_' + col_name + '_unique_constraint'+
                 kw(' UNIQUE(') + fqn(col_name) + kw(')')+';')
             
-        return output
+        return sql
     
-    def get_add_column_sql(self, modelinfo, info, f_default):
-        table_name = modelinfo.name, 
-        col_name = info.name
-        col_type = info.coltype
-        null = info.allow_null
-        unique = info.unique
-        primary_key = info.primary_key
-        from django.db.models.fields import NOT_PROVIDED
-        output = []
+    def get_add_column_sql(self, table, column):
+        # versions >= sqlite 3.2.0, see http://www.sqlite.org/lang_altertable.html
+        table_name = table.name, 
+        col_name = column.name
+        sql = SQL()
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         fct = self.style.SQL_COLTYPE 
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
-        output.append(
+        sql.append(
             kw('ALTER TABLE ') + tqn(table_name) +
-            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fct(col_type) + ';')
-        if primary_key: return output
-        if str(f_default)==str(NOT_PROVIDED) and not null: 
+            kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fct(column.dbtype) + ';')
+        if column.primary_key: 
+            return sql
+        if column.default is NotProvided and not column.allow_null: 
             details = 'column "%s" into table "%s"' % (col_name, table_name)
             raise NotNullColumnNeedsDefaultException("when added " + details)
-        if str(f_default)!=str(NOT_PROVIDED) and not null: 
-            output.append(
+        if not column.default is NotProvided and not column.allow_null: 
+            sql.append(
                 kw('UPDATE ') + tqn(table_name) +
-                kw(' SET ') + fqn(col_name) + ' = ' + fqv(f_default) +
+                kw(' SET ') + fqn(col_name) + ' = ' + fqv(column.default) +
                 kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;'))
-        if not null:
-            output.append(
+        if not column.allow_null:
+            sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) +
                 kw(' ALTER COLUMN ') + fqn(col_name) +
                 kw(' SET NOT NULL;'))
-        if unique:
-            output.append(
+        if column.unique:
+            sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + kw(' ADD CONSTRAINT ') +
                 table_name + '_' + col_name + '_unique_constraint'+
                 kw(' UNIQUE(') + fqn(col_name) + kw(')')+';')
-        return output
+        return sql
     
-    def get_drop_column_sql(self, table_name, col_name):
+    def get_drop_column_sql(self, table, column):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        output = []
-        output.append(
-            kw('ALTER TABLE ') + tqn(table_name) +
-            kw(' DROP COLUMN ') + fqn(col_name) + ';')
-        return output
+        return SQL(
+            kw('ALTER TABLE ') + tqn(table.name) +
+            kw(' DROP COLUMN ') + fqn(column.name) + ';')
     
-    def get_drop_table_sql(self, delete_tables):
-        output = []
+    def get_drop_table_sql(self, table):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        for table_name in delete_tables:
-            output.append(
-                kw('DROP TABLE ')+ tqn(table_name) + ' CASCADE;')
-        return output
+        return SQL(kw('DROP TABLE ')+ tqn(table.name) + ' CASCADE;')
     
     def get_autoinc_sql(self, table):
         return None
@@ -231,20 +216,19 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 primary_key = False,
                 foreign_key = False,
                 unique = False,
+                dbtype = row[1],
+                coltype = get_field_type(row[1]), 
                 allow_null = False,
                 max_length = None
             )
             table.fields.append(column)
             col = column.traits
             col['allow_null'] = not row[3]
-            col['coltype'] = row[1]
             if row[1][0:17]=='character varying':
                 col['max_length'] = int(row[1][18:-1])
-                col['coltype'] = 'varchar'
             if row[1][0:7]=='varchar':
                 col['max_length'] = int(row[1][8:-1])
-                col['coltype'] = 'varchar'
-            elif row[1][0:4]=='text':
+            elif row[1] == 'text':
                 col['max_length'] = 1000000000
                 # null flag check goes here
         cursor.execute("""

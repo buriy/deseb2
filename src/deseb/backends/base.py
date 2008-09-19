@@ -22,7 +22,10 @@ class BaseDatabaseIntrospection(object):
             if table_name.startswith(app_name+"_") or table_name in add_tables:
                 table = self.get_table(cursor, table_name)
                 schema.tables.append(table)
-                table.indexes += self.get_indexes(cursor, table_name)
+                try:
+                    table.indexes += self.get_indexes(cursor, table_name)
+                except IndexError:
+                    pass
         return schema
             
     def get_indexes(self, cursor, table_name):

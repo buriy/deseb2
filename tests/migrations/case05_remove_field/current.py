@@ -6,7 +6,7 @@ field_renames = {
         "published_date": ('pub_date', 'publish_date'),
     },
     "Choice": {
-        "number_of_votes": ('votes',),
+        "number_of_votes": ('votes', 'num_votes'),
         "option": ('choice',),
     },
 }

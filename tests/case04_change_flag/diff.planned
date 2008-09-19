@@ -1,6 +1,7 @@
 Diff: Current DB => Actual case04_change_flag.models
   Table "case04_change_flag_choice"
   * Field "choice" => Field "option"
+    * dbtype: varchar(200) -> varchar(400)
     * max_length: 200 -> 400
   + Field "votes2"
   Table "case04_change_flag_foo"
@@ -8,4 +9,5 @@ Diff: Current DB => Actual case04_change_flag.models
   + Index "case04_change_flag_foo_gender"
   Table "case04_change_flag_poll"
     Field "question"
+    * dbtype: varchar(200) -> varchar(100)
     * max_length: 200 -> 100

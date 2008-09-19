@@ -1,3 +1,4 @@
+from deseb.common import NotProvided
 import sha
 
 def indent(strings, delim = '  '):
@@ -57,10 +58,11 @@ class DBEntity(object):
     
 class DBField(DBEntity):
     allowed_args = set(['allow_null', 'coltype', 'primary_key', 'foreign_key',
-                        'unique', 'max_length', 'sequence'])
+                        'unique', 'max_length', 'sequence', 'default', 'dbtype'])
     def __init__(self, name = None, aka=None, **kwargs):
         if not set(kwargs) <= self.allowed_args:
             raise Exception("Unsupported args: %s" % (set(kwargs) - self.allowed_args))
+        kwargs['default'] = NotProvided
         self.name = name
         self.aka = aka
         self.traits = kwargs
@@ -90,7 +92,7 @@ class DBTable(DBEntity):
         self.indexes = []
         self.aka = aka
         self.traits = kwargs
-        
+
     def get_field(self, name):
         for f in self.fields:
             if f.name == name:

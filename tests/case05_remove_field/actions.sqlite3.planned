@@ -1,0 +1,21 @@
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case05_remove_field_choice" RENAME TO "case05_remove_field_choice_1337_TMP";
+CREATE TABLE "case05_remove_field_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case05_remove_field_poll" ("id"),
+    "option" varchar(200) NOT NULL,
+    "number_of_votes" integer NOT NULL
+)
+;
+INSERT INTO "case05_remove_field_choice" SELECT "id","poll_id","choice","votes" FROM "case05_remove_field_choice_1337_TMP";
+DROP TABLE "case05_remove_field_choice_1337_TMP";
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case05_remove_field_poll" RENAME TO "case05_remove_field_poll_1337_TMP";
+CREATE TABLE "case05_remove_field_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" datetime NOT NULL
+)
+;
+INSERT INTO "case05_remove_field_poll" SELECT "id","question","pub_date" FROM "case05_remove_field_poll_1337_TMP";
+DROP TABLE "case05_remove_field_poll_1337_TMP";

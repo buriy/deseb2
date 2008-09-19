@@ -3,8 +3,11 @@ import sys
 
 import os
 
-STORE = os.path.abspath('')+'/migrations'
-print STORE
+from django.conf import settings
+try:
+    STORE = settings.MIGRATIONS
+except AttributeError:
+    STORE = os.path.abspath('')+'/migrations'
 
 class Dummy: pass
 
@@ -52,16 +55,24 @@ class AkaCache(object):
     def rename_field(self, app_label, model, field, aka):
         pass
     
+    def convert_model_to_table(self, model, aka):
+        return "%s_%s" % (model._meta.app_label, aka.lower())
+    
+    def convert_model_akas_to_tables(self, model):
+        tables = set()
+        for x in model._meta.aka:
+            tables.add(self.convert_model_to_table(model, x))
+        return tables
+    
     def update_with_aka(self, app_label):
         from deseb import added_aka_support
         if added_aka_support:
             for model in get_models(get_app(app_label)):
                 if model._meta.aka:
-                    self.model_aka[model._meta.object_name] = model._meta.aka
+                    self.model_aka[model._meta.object_name] = self.convert_model_akas_to_tables(model)
                 for field in model._meta.fields:
                     if field.aka:
-                        if not model._meta.object_name in self.field_aka:
-                            self.field_aka[model._meta.object_name] = {}
+                        self.field_aka.setdefault(model._meta.object_name, {})
                         self.field_aka[model._meta.object_name][field.name] = field.aka
             
     def save(self, app_label, rev='current'):
@@ -77,7 +88,7 @@ class AkaCache(object):
             if m in app_models:
                 output.append('    "%s": {' % (m))
                 for f, aka in fields.iteritems():
-                    output.append('        "%s": %s' % (f, aka))
+                    output.append('        "%s": %s,' % (f, aka))
                 output.append('    },')
         output.append('}')
         name = rev+'.py'
@@ -93,6 +104,10 @@ class AkaCache(object):
         self._load(model._meta.app_label, rev)
         return self.model_aka.get(model._meta.object_name, set())
     
+    def get_table_aka(self, app, table, rev='current'):
+        self._load(app, rev)
+        return self.model_aka.get(table, set())
+    
     def get_field_aka(self, model, field, rev='current'):
         self._load(model._meta.app_label, rev)
         renames = self.field_aka.get(model._meta.object_name, {})
@@ -101,6 +116,7 @@ class AkaCache(object):
 cache = AkaCache()
         
 get_model_aka = cache.get_model_aka
+get_table_aka = cache.get_table_aka
 get_field_aka = cache.get_field_aka
 save_renames = cache.save
 update_with_aka = cache.update_with_aka

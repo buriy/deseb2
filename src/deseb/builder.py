@@ -4,31 +4,23 @@ from django.db.models.fields.related import ForeignKey
 from deseb.meta import DBSchema
 from deseb.meta import DBTable
 from deseb.meta import DBIndex
-from deseb.meta import TreeDiff
-from deseb.common import get_operations_and_introspection_classes
+from deseb.common import NotProvided, get_app_models
 from django.contrib.contenttypes.generic import GenericRelation
 from deseb.storage import get_model_aka, get_field_aka
 
-try:
-    import django.core.management.sql as management
-    from django.core.management import color
-    version = 'trunk'
-except ImportError:
-    # v0.96 compatibility
-    import django.core.management as management
-    management.installed_models = management._get_installed_models
+def get_field_default(column, empty=NotProvided):
+    if column.default is NotProvided:
+        return empty
+    if callable(column.default): 
+        return empty
+    return column.default
 
-def get_field_default(f):
-    from django.db.models.fields import NOT_PROVIDED
-    if callable(f.default): return NOT_PROVIDED
-    return f.default
-
-def get_field_type(f):
-    if not f: return 'unknown'
-    #if f in ['timestamp with time zone']: return f
+def get_field_type(f, empty='unknown'):
+    if not f: return empty
     f = f.split('(')[0].split(' CHECK')[0]
     if f in ['integer', 'serial']: return 'int'
     if f in ['tinyint']: return 'bool'
+    if f in ['character varying']: return 'varchar'
     if f in ['decimal']: return 'numeric'
     return f    
 
@@ -39,17 +31,18 @@ def get_max_length(f):
             return int(f.db_type().split('(')[1].split(')')[0])
     return f.max_length
 
-def compare_field_length(f, column_flags):
-    from django.db.models.fields import CharField, SlugField, AutoField
-    f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', None)))
-    db_maxlength = str(column_flags.traits.get('max_length', 64000))
-    return(not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
-          (not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
+#def compare_field_length(f, column_flags):
+#    from django.db.models.fields import CharField, SlugField
+#    f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', None)))
+#    db_maxlength = str(column_flags.traits.get('max_length', 64000))
+#    return(not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
+#          (not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)
 
 def build_model_flags(model, f):
     info = DBField(
         name = f.attname,
         allow_null = f.null,
+        dbtype = f.db_type(),
         coltype = get_field_type(f.db_type()),
         foreign_key = isinstance(f, ForeignKey),
         primary_key = f.primary_key,
@@ -83,16 +76,13 @@ def build_m2m_table(app, m2m_field, model):
     for column, f in get_m2m_fields(model, m2m_field):
         #existing_relations = introspection.get_relations(cursor,db_table)
         f.attname = column
-        flags = build_model_flags(f)
+        flags = build_model_flags(model, f)
         table.fields.append(flags)
     return table
 
 def build_model_schema(app):
-    from django.db import models
-
-    # get the existing models, minus the models we've just created
-    app_models = models.get_models(app)
-            
+    app_models = get_app_models(app)
+    
     schema = DBSchema('Actual '+app.__name__)
     revised = []
 
@@ -103,6 +93,7 @@ def build_model_schema(app):
             schema.tables.append(table)
         for f in model._meta.local_many_to_many:
             if isinstance(f, GenericRelation): continue
+            if not hasattr(f.rel, 'through'): continue # < v1.0
             m2m = f.rel.through
             if m2m and not m2m in revised and not m2m in app_models:
                 app_models.append(m2m)

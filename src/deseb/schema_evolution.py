@@ -20,6 +20,9 @@ def get_installed_tables(app):
         add_tables.update(get_model_aka(model))
     return add_tables
 
+def get_sql_all(app, style):
+    return management.sql_all(app, style)
+
 def get_sql_evolution_detailed(app, style, notify):
     "Returns SQL to update an existing schema to match the existing models."
     
@@ -94,9 +97,6 @@ def get_sql_fingerprint(app, style, notify=True):
         traceback.print_exc()
         if notify: sys.stderr.write(style.NOTICE("deseb: Current schema fingerprint for '%s' is '%s' (no schema_evolution module found)\n" % (app_name, schema_fingerprint)))
     return
-
-def get_sql_all(app, style):
-    return management.sql_all(app, style)
 
 def get_managed_evolution_options(app, schema_fingerprint, style, notify):
     # return schema_recognized, available_upgrades, best_upgrade
