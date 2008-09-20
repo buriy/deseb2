@@ -1,79 +1,34 @@
-from deseb.common import SQL, fixed_sql_model_create as model_create, NotProvided
+from deseb.backends.base import BaseDatabaseIntrospection
+from deseb.backends.base import BaseDatabaseOperations
+from deseb.builder import get_field_type
+from deseb.common import NotProvided
+from deseb.common import SQL
 from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
-from deseb.backends.base import BaseDatabaseIntrospection
-from deseb.builder import get_field_type, get_field_default
-from django.db.models.loading import get_models
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
 
 class RebuildTableNeededException(Exception): pass
 
-class DatabaseOperations:
+class DatabaseOperations(BaseDatabaseOperations):
     def quote_value(self, s):
         if type(s) is bool:
-            if s: return "'t'"
-            else: return "'f'"
+            if s: return u"'t'"
+            else: return u"'f'"
         if type(s) is int:
-            return str(s)
+            return unicode(s)
         else:
             return u"'%s'" % unicode(s).replace("'", "\'")
     
-    def __init__(self, connection, style):
-        self.connection = connection
-        self.style = style
-    
-    pk_requires_unique = True
-
     def get_change_table_name_sql(self, left, right):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         return SQL(kw('ALTER TABLE ') + tqn(left.name) +
                 kw(' RENAME TO ') + tqn(right.name) + ';')
-    
-    def get_rebuild_table_sql(self, left, right, renames):
-        """
-        Renames: right => left
-        """
-        table_name = right.name
-        old_names = [f.name for f in left.fields]
 
-        # used instead of column renames, additions and removals
-        qn = self.connection.ops.quote_name
-        kw = self.style.SQL_KEYWORD
-        fld = self.style.SQL_FIELD
-        tqn = lambda s: self.style.SQL_TABLE(qn(s))
-        fqn = lambda s: self.style.SQL_FIELD(qn(s))
-        fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
-        app, model = self.get_model_from_table_name(table_name)
-        if not model:
-            raise Exception("Model for table %s was not found" % table_name)
-        sql = SQL('-- FYI: next few lines could take a while if you have a lot of data') 
-    
-        tmp_table_name = table_name + '_1337_TMP' # unlikely to produce a namespace conflict
-        temp = DBTable(tmp_table_name)
-        sql.extend(self.get_change_table_name_sql(left, temp))
-        referenced_tables = app and set(get_models(app)) or set()
-        sql.extend(model_create(model, referenced_tables, self.style)[0])
-        updated = []
-        for f in right.fields:
-            if f.name in renames:
-                updated.append(fqn(renames[f.name])) # copy column
-            elif f.name in old_names:
-                updated.append(fqn(f.name)) # copy column
-            else:
-                default = get_field_default(f, '')
-                updated.append(fqv(default))
-
-        sql.append(kw('INSERT INTO ') + tqn(table_name) + 
-                      kw(' SELECT ') + fld(','.join(updated)) + 
-                      kw(' FROM ') + tqn(tmp_table_name) +';')
-        sql.append(kw('DROP TABLE ') + tqn(tmp_table_name) +';')
-        return sql
-    
     def get_change_column_name_sql(self, table, left, right):
         raise RebuildTableNeededException("sqlite does not support renaming columns")
 

@@ -1,12 +1,13 @@
 from deseb.actions import NotNullColumnNeedsDefaultException
+from deseb.backends.base import BaseDatabaseIntrospection
+from deseb.backends.base import BaseDatabaseOperations
+from deseb.builder import get_field_type
+from deseb.common import SQL, NotProvided
 from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
-from deseb.backends.base import BaseDatabaseIntrospection
-from deseb.common import SQL, NotProvided
-from deseb.builder import get_field_type
 
-class DatabaseOperations:
+class DatabaseOperations(BaseDatabaseOperations):
     def quote_value(self, s):
         if type(s) is bool:
             if s: return "'t'"
@@ -15,10 +16,6 @@ class DatabaseOperations:
             return str(s)
         else:
             return u"'%s'" % unicode(s).replace("'","\'")
-    
-    def __init__(self, connection, style):
-        self.connection = connection
-        self.style = style
     
     pk_requires_unique = False
 

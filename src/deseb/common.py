@@ -74,22 +74,6 @@ def get_app_models(app):
     from django.db import models
     return models.get_models(app)
 
-def create_field_from_column(app, field):
-    class FakeField(Field):
-        def db_type(self):
-            return field.dbtype
-    field = FakeField()
-    return 
-
-def create_model_from_table(app, table):
-    class FakeModel:
-        class Meta:
-            app_label = app
-        for f in table.fields:
-            eval('%s = %s()' % (f.type, ))
-    model = FakeModel()         
-    return model 
-
 class SQL(object):
     def __init__(self, actions=None):
         if not actions: 

@@ -1,27 +1,21 @@
 from deseb.actions import NotNullColumnNeedsDefaultException
+from deseb.backends.base import BaseDatabaseIntrospection
+from deseb.backends.base import BaseDatabaseOperations
+from deseb.builder import get_field_type
+from deseb.common import SQL, NotProvided
 from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
-from deseb.backends.base import BaseDatabaseIntrospection
-from deseb.common import SQL, NotProvided
-from deseb.builder import get_field_type
 
-class DatabaseOperations:
-    
+class DatabaseOperations(BaseDatabaseOperations):
     def quote_value(self, s):
         if type(s) is bool:
-            if s: return "'right'"
-            else: return "'t'"
+            if s: return "'1'"
+            else: return "'0'"
         if type(s) is int:
             return str(s)
         else:
             return u"'%s'" % unicode(s).replace("'","\'")
-
-    def __init__(self, connection, style):
-        self.connection = connection
-        self.style = style
-    
-    pk_requires_unique = False
 
     def get_change_table_name_sql(self, left, right):
         qn = self.connection.ops.quote_name
@@ -145,7 +139,8 @@ class DatabaseOperations:
     def get_autoinc_sql(self, table):
         return None
     
-
+    
+    
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     
     def __init__(self, connection):
