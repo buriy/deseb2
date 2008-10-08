@@ -1,0 +1,1 @@
+ALTER TABLE `issue4_textfield_add_topic` ADD COLUMN `content` longtext;

@@ -1,0 +1,4 @@
+Diff: Current DB => Actual case07_change_type.models
+  Table "case07_change_type_poll"
+    Field "rank"
+    * coltype: double [double; ] -> numeric(5, 2) [numeric; decimal_places=2, max_digits=5]

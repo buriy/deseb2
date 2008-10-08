@@ -17,3 +17,4 @@ CREATE TABLE "case04_change_flag_choice" (
     "votes" integer NOT NULL
 )
 ;
+CREATE INDEX "case04_change_flag_choice_poll_id" ON "case04_change_flag_choice" ("poll_id");

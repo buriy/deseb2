@@ -12,3 +12,4 @@ CREATE TABLE "case02_rename_field_choice" (
     "votes" integer NOT NULL
 )
 ;
+CREATE INDEX "case02_rename_field_choice_poll_id" ON "case02_rename_field_choice" ("poll_id");

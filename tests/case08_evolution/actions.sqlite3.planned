@@ -1,0 +1,6 @@
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "content" text NOT NULL DEFAULT '';
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "creatorIp" char(15) NULL;
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "hasSomething" bool NOT NULL DEFAULT 'f';
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "votes2" integer NOT NULL DEFAULT 0;
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "votes3" integer NOT NULL DEFAULT 5;
+ALTER TABLE "case08_evolution_poll" ADD COLUMN "pub_date2" datetime NULL;

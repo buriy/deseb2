@@ -1,1 +1,1 @@
-ALTER TABLE "issue3_intfield_default_value_channel" ADD COLUMN "visits" integer NOT NULL DEFAULT 0
+ALTER TABLE "issue3_intfield_default_value_channel" ADD COLUMN "visits" integer NOT NULL DEFAULT 0;

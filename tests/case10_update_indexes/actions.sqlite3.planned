@@ -1,0 +1,76 @@
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case10_update_indexes_choice" RENAME TO "case10_update_indexes_choice_1337_TMP";
+CREATE TABLE "case10_update_indexes_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL,
+    "option" varchar(400) NOT NULL,
+    "votes" integer NOT NULL,
+    "votes2" integer NOT NULL
+)
+;
+INSERT INTO "case10_update_indexes_choice" SELECT "id","poll_id","choice","votes",'-5' FROM "case10_update_indexes_choice_1337_TMP";
+DROP TABLE "case10_update_indexes_choice_1337_TMP";
+CREATE INDEX "case10_update_indexes_choice_poll_id" ON "case10_update_indexes_choice" ("poll_id");
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case10_update_indexes_choice2" RENAME TO "case10_update_indexes_choice2_1337_TMP";
+CREATE TABLE "case10_update_indexes_choice2" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL,
+    "option" varchar(400) NOT NULL,
+    "votes" integer NOT NULL,
+    "votes2" integer NOT NULL
+)
+;
+INSERT INTO "case10_update_indexes_choice2" SELECT "id","poll_id","choice","votes",'-5' FROM "case10_update_indexes_choice2_1337_TMP";
+DROP TABLE "case10_update_indexes_choice2_1337_TMP";
+CREATE INDEX "case10_update_indexes_choice2_poll_id" ON "case10_update_indexes_choice2" ("poll_id");
+CREATE INDEX "case10_update_indexes_choice2_option" ON "case10_update_indexes_choice2" ("option");
+CREATE INDEX "case10_update_indexes_choice2_votes" ON "case10_update_indexes_choice2" ("votes");
+CREATE INDEX "case10_update_indexes_choice2_votes2" ON "case10_update_indexes_choice2" ("votes2");
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case10_update_indexes_foo" RENAME TO "case10_update_indexes_foo_1337_TMP";
+CREATE TABLE "case10_update_indexes_foo" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "gender" varchar(1) NOT NULL,
+    "gender2" varchar(1) NULL UNIQUE
+)
+;
+INSERT INTO "case10_update_indexes_foo" SELECT "id","gender",NULL FROM "case10_update_indexes_foo_1337_TMP";
+DROP TABLE "case10_update_indexes_foo_1337_TMP";
+CREATE INDEX "case10_update_indexes_foo_gender" ON "case10_update_indexes_foo" ("gender");
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case10_update_indexes_foo2" RENAME TO "case10_update_indexes_foo2_1337_TMP";
+CREATE TABLE "case10_update_indexes_foo2" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "gender" varchar(1) NOT NULL,
+    "gender2" varchar(1) NULL UNIQUE
+)
+;
+INSERT INTO "case10_update_indexes_foo2" SELECT "id","gender",NULL FROM "case10_update_indexes_foo2_1337_TMP";
+DROP TABLE "case10_update_indexes_foo2_1337_TMP";
+CREATE INDEX "case10_update_indexes_foo2_gender" ON "case10_update_indexes_foo2" ("gender");
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case10_update_indexes_poll" RENAME TO "case10_update_indexes_poll_1337_TMP";
+CREATE TABLE "case10_update_indexes_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(100) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+INSERT INTO "case10_update_indexes_poll" SELECT "id","question","pub_date","author" FROM "case10_update_indexes_poll_1337_TMP";
+DROP TABLE "case10_update_indexes_poll_1337_TMP";
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case10_update_indexes_poll2" RENAME TO "case10_update_indexes_poll2_1337_TMP";
+CREATE TABLE "case10_update_indexes_poll2" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(100) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+INSERT INTO "case10_update_indexes_poll2" SELECT "id","question","pub_date","author" FROM "case10_update_indexes_poll2_1337_TMP";
+DROP TABLE "case10_update_indexes_poll2_1337_TMP";
+CREATE INDEX "case10_update_indexes_poll2_question" ON "case10_update_indexes_poll2" ("question");
+CREATE INDEX "case10_update_indexes_poll2_pub_date" ON "case10_update_indexes_poll2" ("pub_date");
+CREATE INDEX "case10_update_indexes_poll2_author" ON "case10_update_indexes_poll2" ("author");

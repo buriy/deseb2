@@ -1,0 +1,48 @@
+CREATE TABLE `case10_update_indexes_foo` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `gender` varchar(1) NOT NULL
+)
+;
+CREATE TABLE `case10_update_indexes_poll2` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `question` varchar(200) NOT NULL,
+    `pub_date` datetime NOT NULL,
+    `author` varchar(200) NOT NULL
+)
+;
+CREATE TABLE `case10_update_indexes_choice2` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `poll_id` integer NOT NULL,
+    `choice` varchar(200) NOT NULL,
+    `votes` integer NOT NULL
+)
+;
+CREATE TABLE `case10_update_indexes_choice` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `poll_id` integer NOT NULL,
+    `choice` varchar(200) NOT NULL,
+    `votes` integer NOT NULL
+)
+;
+CREATE TABLE `case10_update_indexes_poll` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `question` varchar(200) NOT NULL,
+    `pub_date` datetime NOT NULL,
+    `author` varchar(200) NOT NULL
+)
+;
+ALTER TABLE `case10_update_indexes_choice2` ADD CONSTRAINT poll_id_refs_id_6bbfe088 FOREIGN KEY (`poll_id`) REFERENCES `case10_update_indexes_poll` (`id`);
+ALTER TABLE `case10_update_indexes_choice` ADD CONSTRAINT poll_id_refs_id_3d2f795b FOREIGN KEY (`poll_id`) REFERENCES `case10_update_indexes_poll` (`id`);
+CREATE TABLE `case10_update_indexes_foo2` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `gender` varchar(1) NOT NULL
+)
+;
+CREATE INDEX `case10_update_indexes_foo_gender` ON `case10_update_indexes_foo` (`gender`);
+CREATE INDEX `case10_update_indexes_choice2_poll_id` ON `case10_update_indexes_choice2` (`poll_id`);
+CREATE INDEX `case10_update_indexes_choice_poll_id` ON `case10_update_indexes_choice` (`poll_id`);
+CREATE INDEX `case10_update_indexes_choice_choice` ON `case10_update_indexes_choice` (`choice`);
+CREATE INDEX `case10_update_indexes_choice_votes` ON `case10_update_indexes_choice` (`votes`);
+CREATE INDEX `case10_update_indexes_poll_question` ON `case10_update_indexes_poll` (`question`);
+CREATE INDEX `case10_update_indexes_poll_pub_date` ON `case10_update_indexes_poll` (`pub_date`);
+CREATE INDEX `case10_update_indexes_poll_author` ON `case10_update_indexes_poll` (`author`);

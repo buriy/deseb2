@@ -1,0 +1,3 @@
+ALTER TABLE "case02_rename_field_choice" RENAME COLUMN "votes" TO "number_of_votes";
+ALTER TABLE "case02_rename_field_poll" RENAME COLUMN "the_author" TO "author";
+ALTER TABLE "case02_rename_field_poll" RENAME COLUMN "pub_date" TO "published_date";

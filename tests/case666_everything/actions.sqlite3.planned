@@ -1,0 +1,69 @@
+ALTER TABLE "case666_everything_a" RENAME TO "case666_everything_ra";
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a002" bool NOT NULL DEFAULT 'f';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a003" varchar(256) NOT NULL DEFAULT 'x';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a004" varchar(256) NOT NULL DEFAULT '1';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a005" date NOT NULL DEFAULT '2008-10-08 14:37:18.482206';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a006" datetime NOT NULL DEFAULT '2008-10-08 14:37:18.482274';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a007" decimal NOT NULL DEFAULT 2;
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a008" varchar(75) NOT NULL DEFAULT 'x';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a010" varchar(100) NOT NULL DEFAULT '';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a011" varchar(100) NOT NULL DEFAULT 'x';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a012" real NOT NULL DEFAULT '2.0';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a013" char(15) NOT NULL DEFAULT '0.0.0.0';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a014" varchar(100) NOT NULL DEFAULT '';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a015" integer NOT NULL DEFAULT '0';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a016" bool NULL;
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a018" varchar(20) NOT NULL DEFAULT '555-867-5309';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a019" integer unsigned NOT NULL DEFAULT 7;
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a020" smallint unsigned NOT NULL DEFAULT 6;
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a021" varchar(50) NOT NULL DEFAULT 'x';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a022" smallint NOT NULL DEFAULT -2;
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a023" text NOT NULL DEFAULT 'x';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a024" time NOT NULL DEFAULT '2008-10-08 14:37:18.483056';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a025" varchar(200) NOT NULL DEFAULT 'x';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a026" varchar(2) NOT NULL DEFAULT 'TX';
+ALTER TABLE "case666_everything_ra" ADD COLUMN "a027" text NOT NULL DEFAULT 'x';
+CREATE INDEX "case666_everything_ra_a021" ON "case666_everything_ra" ("a021");
+DROP INDEX "case666_everything_a_c021";
+CREATE INDEX "case666_everything_ra_c021" ON "case666_everything_ra" ("c021");
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case666_everything_b" RENAME TO "case666_everything_rb_1337_TMP";
+CREATE TABLE "case666_everything_rb" (
+    "r001" integer NOT NULL PRIMARY KEY,
+    "r002" bool NULL,
+    "r003" varchar(256) NULL,
+    "r004" varchar(256) NULL,
+    "r005" date NULL,
+    "r006" datetime NULL,
+    "r007" decimal NULL,
+    "r008" varchar(75) NULL,
+    "r010" varchar(100) NULL,
+    "r011" varchar(100) NULL,
+    "c012" real NULL,
+    "r013" char(15) NULL,
+    "r014" varchar(100) NULL,
+    "r015" integer NULL,
+    "r016" bool NULL,
+    "r018" varchar(20) NULL,
+    "r019" integer unsigned NULL,
+    "r020" smallint unsigned NULL,
+    "r021" varchar(50) NULL,
+    "r022" smallint NULL,
+    "r023" text NULL,
+    "r024" time NULL,
+    "r025" varchar(200) NULL,
+    "r026" varchar(2) NULL,
+    "r027" text NULL
+)
+;
+INSERT INTO "case666_everything_rb" SELECT "c001","c002","c003","c004","c005","c006","c007","c008","c010","c011","c012","c013","c014","c015","c016","c018","c019","c020","c021","c022","c023","c024","c025","c026","c027" FROM "case666_everything_rb_1337_TMP";
+DROP TABLE "case666_everything_rb_1337_TMP";
+CREATE INDEX "case666_everything_rb_r021" ON "case666_everything_rb" ("r021");
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case666_everything_c" RENAME TO "case666_everything_rc_1337_TMP";
+CREATE TABLE "case666_everything_rc" (
+    "id" integer NOT NULL PRIMARY KEY
+)
+;
+INSERT INTO "case666_everything_rc" SELECT "id" FROM "case666_everything_rc_1337_TMP";
+DROP TABLE "case666_everything_rc_1337_TMP";

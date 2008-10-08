@@ -1,0 +1,1 @@
+ALTER TABLE `case07_change_type_poll` MODIFY COLUMN `rank` numeric(5, 2) NOT NULL;

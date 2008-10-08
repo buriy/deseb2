@@ -1,0 +1,13 @@
+CREATE TABLE "issue4_textfield_add_topic" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "title" varchar(255) NOT NULL UNIQUE,
+    "slug" varchar(50) NOT NULL,
+    "feature" integer NOT NULL,
+    "hidden" boolean NOT NULL,
+    "order" integer NOT NULL,
+    "category" varchar(50) NOT NULL,
+    "create_date" date NOT NULL,
+    "updated_date" date NOT NULL
+)
+;
+CREATE INDEX "issue4_textfield_add_topic_slug" ON "issue4_textfield_add_topic" ("slug");

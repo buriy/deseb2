@@ -1,0 +1,17 @@
+CREATE TABLE `case07_change_type_poll` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `question` varchar(200) NOT NULL,
+    `pub_date` datetime NOT NULL,
+    `the_author` varchar(200) NOT NULL,
+    `rank` double precision NOT NULL
+)
+;
+CREATE TABLE `case07_change_type_choice` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `poll_id` integer NOT NULL,
+    `choice` varchar(200) NOT NULL,
+    `votes` integer NOT NULL
+)
+;
+ALTER TABLE `case07_change_type_choice` ADD CONSTRAINT poll_id_refs_id_7072279d FOREIGN KEY (`poll_id`) REFERENCES `case07_change_type_poll` (`id`);
+CREATE INDEX `case07_change_type_choice_poll_id` ON `case07_change_type_choice` (`poll_id`);

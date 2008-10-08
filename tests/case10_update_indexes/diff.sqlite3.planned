@@ -1,0 +1,31 @@
+Diff: Current DB => Actual case10_update_indexes.models
+  Table "case10_update_indexes_choice"
+  * Field "choice" => Field "option"
+    * coltype: varchar(200) [varchar; max_length=200] -> varchar(400) [varchar; max_length=400]
+  + Field "votes2"
+  - Index "choice"
+  - Index "votes"
+  Table "case10_update_indexes_choice2"
+  * Field "choice" => Field "option"
+    * coltype: varchar(200) [varchar; max_length=200] -> varchar(400) [varchar; max_length=400]
+  + Field "votes2"
+  + Index "option"
+  + Index "votes"
+  + Index "votes2"
+  Table "case10_update_indexes_foo"
+  + Field "gender2"
+  Table "case10_update_indexes_foo2"
+  + Field "gender2"
+  + Index "gender"
+  Table "case10_update_indexes_poll"
+    Field "question"
+    * coltype: varchar(200) [varchar; max_length=200] -> varchar(100) [varchar; max_length=100]
+  - Index "author"
+  - Index "pub_date"
+  - Index "question"
+  Table "case10_update_indexes_poll2"
+    Field "question"
+    * coltype: varchar(200) [varchar; max_length=200] -> varchar(100) [varchar; max_length=100]
+  + Index "author"
+  + Index "pub_date"
+  + Index "question"

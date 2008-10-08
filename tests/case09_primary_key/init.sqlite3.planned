@@ -1,0 +1,12 @@
+CREATE TABLE "case09_primary_key_a" (
+    "c001" integer NOT NULL PRIMARY KEY
+)
+;
+CREATE TABLE "case09_primary_key_c" (
+    "c001" integer NOT NULL PRIMARY KEY
+)
+;
+CREATE TABLE "case09_primary_key_b" (
+    "c001" integer NOT NULL PRIMARY KEY
+)
+;

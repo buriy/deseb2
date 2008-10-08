@@ -1,0 +1,3 @@
+ALTER TABLE `issue3_intfield_default_value_channel` ADD COLUMN `visits` integer;
+UPDATE `issue3_intfield_default_value_channel` SET `visits` = 0 WHERE `visits` IS NULL;
+ALTER TABLE `issue3_intfield_default_value_channel` MODIFY COLUMN `visits` integer NOT NULL;

@@ -12,3 +12,4 @@ CREATE TABLE "case05_remove_field_choice" (
     "votes" integer NOT NULL
 )
 ;
+CREATE INDEX "case05_remove_field_choice_poll_id" ON "case05_remove_field_choice" ("poll_id");

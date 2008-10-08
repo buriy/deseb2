@@ -1,0 +1,11 @@
+Diff: Current DB => Actual case04_change_flag.models
+  Table "case04_change_flag_choice"
+  * Field "choice" => Field "option"
+    * coltype: character varying(200) [varchar; max_length=200] -> varchar(400) [varchar; max_length=400]
+  + Field "votes2"
+  Table "case04_change_flag_foo"
+  + Field "gender2"
+  + Index "gender"
+  Table "case04_change_flag_poll"
+    Field "question"
+    * coltype: character varying(200) [varchar; max_length=200] -> varchar(100) [varchar; max_length=100]

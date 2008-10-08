@@ -2,13 +2,14 @@
 ALTER TABLE "case02_rename_field_choice" RENAME TO "case02_rename_field_choice_1337_TMP";
 CREATE TABLE "case02_rename_field_choice" (
     "id" integer NOT NULL PRIMARY KEY,
-    "poll_id" integer NOT NULL REFERENCES "case02_rename_field_poll" ("id"),
+    "poll_id" integer NOT NULL,
     "choice" varchar(200) NOT NULL,
     "number_of_votes" integer NOT NULL
 )
 ;
 INSERT INTO "case02_rename_field_choice" SELECT "id","poll_id","choice","votes" FROM "case02_rename_field_choice_1337_TMP";
 DROP TABLE "case02_rename_field_choice_1337_TMP";
+CREATE INDEX "case02_rename_field_choice_poll_id" ON "case02_rename_field_choice" ("poll_id");
 -- FYI: next few lines could take a while if you have a lot of data
 ALTER TABLE "case02_rename_field_poll" RENAME TO "case02_rename_field_poll_1337_TMP";
 CREATE TABLE "case02_rename_field_poll" (

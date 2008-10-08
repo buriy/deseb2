@@ -1,0 +1,12 @@
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case07_change_type_poll" RENAME TO "case07_change_type_poll_1337_TMP";
+CREATE TABLE "case07_change_type_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "the_author" varchar(200) NOT NULL,
+    "rank" decimal NOT NULL
+)
+;
+INSERT INTO "case07_change_type_poll" SELECT "id","question","pub_date","the_author","rank" FROM "case07_change_type_poll_1337_TMP";
+DROP TABLE "case07_change_type_poll_1337_TMP";

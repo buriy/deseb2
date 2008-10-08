@@ -1,0 +1,7 @@
+ALTER TABLE `case04_change_flag_choice` CHANGE COLUMN `choice` `option` varchar(400) NOT NULL;
+ALTER TABLE `case04_change_flag_choice` ADD COLUMN `votes2` integer;
+UPDATE `case04_change_flag_choice` SET `votes2` = '-5' WHERE `votes2` IS NULL;
+ALTER TABLE `case04_change_flag_choice` MODIFY COLUMN `votes2` integer NOT NULL;
+ALTER TABLE `case04_change_flag_foo` ADD COLUMN `gender2` varchar(1) UNIQUE;
+CREATE INDEX `case04_change_flag_foo_gender` ON `case04_change_flag_foo` (`gender`);
+ALTER TABLE `case04_change_flag_poll` MODIFY COLUMN `question` varchar(100) NOT NULL;

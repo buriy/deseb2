@@ -1,0 +1,10 @@
+Diff: Current DB => Actual case09_primary_key.models
+* Table "case09_primary_key_a" => Table "case09_primary_key_ra"
+    Field "c001"
+    * sequence: case09_primary_key_a_c001_seq -> case09_primary_key_ra_c001_seq
+* Table "case09_primary_key_b" => Table "case09_primary_key_rb"
+  * Field "c001" => Field "r001"
+    * sequence: case09_primary_key_b_c001_seq -> case09_primary_key_rb_r001_seq
+* Table "case09_primary_key_c" => Table "case09_primary_key_rc"
+  + Field "id"
+  - Field "c001"

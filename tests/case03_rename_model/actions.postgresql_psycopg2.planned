@@ -1,0 +1,6 @@
+ALTER TABLE "case03_rename_model_choice" RENAME TO "case03_rename_model_option";
+ALTER TABLE "case03_rename_model_choice_id_seq" RENAME TO "case03_rename_model_option_id_seq";
+ALTER TABLE "case03_rename_model_option" ALTER COLUMN "id" SET DEFAULT nextval('case03_rename_model_option_id_seq'::regclass);
+ALTER TABLE "case03_rename_model_option" RENAME COLUMN "number_of_votes" TO "votes";
+DROP INDEX "case03_rename_model_choice_poll_id";
+CREATE INDEX "case03_rename_model_option_poll_id" ON "case03_rename_model_option" ("poll_id");

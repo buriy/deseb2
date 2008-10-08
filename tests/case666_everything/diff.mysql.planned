@@ -1,0 +1,106 @@
+Diff: Current DB => Actual case666_everything.models
+* Table "case666_everything_a" => Table "case666_everything_ra"
+  + Field "a002"
+  + Field "a003"
+  + Field "a004"
+  + Field "a005"
+  + Field "a006"
+  + Field "a007"
+  + Field "a008"
+  + Field "a010"
+  + Field "a011"
+  + Field "a012"
+  + Field "a013"
+  + Field "a014"
+  + Field "a015"
+  + Field "a016"
+  + Field "a018"
+  + Field "a019"
+  + Field "a020"
+  + Field "a021"
+  + Field "a022"
+  + Field "a023"
+  + Field "a024"
+  + Field "a025"
+  + Field "a026"
+  + Field "a027"
+  + Index "a021"
+    Index "c021"
+    * full_name: case666_everything_a_c021 -> case666_everything_ra_c021
+* Table "case666_everything_b" => Table "case666_everything_rb"
+    Field "c012"
+    * allow_null: False -> True
+  * Field "c001" => Field "r001"
+  * Field "c002" => Field "r002"
+    * allow_null: False -> True
+  * Field "c003" => Field "r003"
+    * allow_null: False -> True
+  * Field "c004" => Field "r004"
+    * allow_null: False -> True
+  * Field "c005" => Field "r005"
+    * allow_null: False -> True
+  * Field "c006" => Field "r006"
+    * allow_null: False -> True
+  * Field "c007" => Field "r007"
+    * allow_null: False -> True
+  * Field "c008" => Field "r008"
+    * allow_null: False -> True
+  * Field "c010" => Field "r010"
+    * allow_null: False -> True
+  * Field "c011" => Field "r011"
+    * allow_null: False -> True
+  * Field "c013" => Field "r013"
+    * allow_null: False -> True
+  * Field "c014" => Field "r014"
+    * allow_null: False -> True
+  * Field "c015" => Field "r015"
+    * allow_null: False -> True
+  * Field "c016" => Field "r016"
+  * Field "c018" => Field "r018"
+    * allow_null: False -> True
+  * Field "c019" => Field "r019"
+    * allow_null: False -> True
+  * Field "c020" => Field "r020"
+    * allow_null: False -> True
+  * Field "c021" => Field "r021"
+    * allow_null: False -> True
+  * Field "c022" => Field "r022"
+    * allow_null: False -> True
+  * Field "c023" => Field "r023"
+    * allow_null: False -> True
+  * Field "c024" => Field "r024"
+    * allow_null: False -> True
+  * Field "c025" => Field "r025"
+    * allow_null: False -> True
+  * Field "c026" => Field "r026"
+    * allow_null: False -> True
+  * Field "c027" => Field "r027"
+    * allow_null: False -> True
+  + Index "r021"
+  - Index "c021"
+* Table "case666_everything_c" => Table "case666_everything_rc"
+  - Field "c002"
+  - Field "c003"
+  - Field "c004"
+  - Field "c005"
+  - Field "c006"
+  - Field "c007"
+  - Field "c008"
+  - Field "c010"
+  - Field "c011"
+  - Field "c012"
+  - Field "c013"
+  - Field "c014"
+  - Field "c015"
+  - Field "c016"
+  - Field "c018"
+  - Field "c019"
+  - Field "c020"
+  - Field "c021"
+  - Field "c022"
+  - Field "c023"
+  - Field "c024"
+  - Field "c025"
+  - Field "c026"
+  - Field "c027"
+  - Index "c021"

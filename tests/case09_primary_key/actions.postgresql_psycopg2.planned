@@ -1,0 +1,15 @@
+ALTER TABLE "case09_primary_key_a" RENAME TO "case09_primary_key_ra";
+ALTER TABLE "case09_primary_key_a_c001_seq" RENAME TO "case09_primary_key_ra_c001_seq";
+ALTER TABLE "case09_primary_key_ra" ALTER COLUMN "c001" SET DEFAULT nextval('case09_primary_key_ra_c001_seq'::regclass);
+ALTER TABLE "case09_primary_key_b" RENAME TO "case09_primary_key_rb";
+ALTER TABLE "case09_primary_key_rb" RENAME COLUMN "c001" TO "r001";
+ALTER TABLE "case09_primary_key_b_c001_seq" RENAME TO "case09_primary_key_rb_r001_seq";
+ALTER TABLE "case09_primary_key_rb" ALTER COLUMN "r001" SET DEFAULT nextval('case09_primary_key_rb_r001_seq'::regclass);
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case09_primary_key_c" RENAME TO "case09_primary_key_rc_1337_TMP";
+CREATE TABLE "case09_primary_key_rc" (
+    "id" serial NOT NULL PRIMARY KEY
+)
+;
+INSERT INTO "case09_primary_key_rc" SELECT '0' FROM "case09_primary_key_rc_1337_TMP";
+DROP TABLE "case09_primary_key_rc_1337_TMP" CASCADE;

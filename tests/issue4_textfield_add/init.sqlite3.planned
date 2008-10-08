@@ -10,3 +10,4 @@ CREATE TABLE "issue4_textfield_add_topic" (
     "updated_date" date NOT NULL
 )
 ;
+CREATE INDEX "issue4_textfield_add_topic_slug" ON "issue4_textfield_add_topic" ("slug");

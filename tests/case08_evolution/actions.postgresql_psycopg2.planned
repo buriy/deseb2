@@ -1,0 +1,14 @@
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "content" text;
+UPDATE "case08_evolution_choice" SET "content" = '' WHERE "content" IS NULL;
+ALTER TABLE "case08_evolution_choice" ALTER COLUMN "content" SET NOT NULL;
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "creatorIp" inet;
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "hasSomething" boolean;
+UPDATE "case08_evolution_choice" SET "hasSomething" = 'f' WHERE "hasSomething" IS NULL;
+ALTER TABLE "case08_evolution_choice" ALTER COLUMN "hasSomething" SET NOT NULL;
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "votes2" integer;
+UPDATE "case08_evolution_choice" SET "votes2" = 0 WHERE "votes2" IS NULL;
+ALTER TABLE "case08_evolution_choice" ALTER COLUMN "votes2" SET NOT NULL;
+ALTER TABLE "case08_evolution_choice" ADD COLUMN "votes3" integer;
+UPDATE "case08_evolution_choice" SET "votes3" = 5 WHERE "votes3" IS NULL;
+ALTER TABLE "case08_evolution_choice" ALTER COLUMN "votes3" SET NOT NULL;
+ALTER TABLE "case08_evolution_poll" ADD COLUMN "pub_date2" timestamp with time zone;

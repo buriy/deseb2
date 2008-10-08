@@ -1,0 +1,4 @@
+ALTER TABLE "case07_change_type_poll" ADD COLUMN "rank_tmp_1337" numeric(5, 2) NOT NULL;
+UPDATE "case07_change_type_poll" SET "rank_tmp_1337" = "rank";
+ALTER TABLE "case07_change_type_poll" DROP COLUMN "rank";
+ALTER TABLE "case07_change_type_poll" RENAME COLUMN "rank_tmp_1337" TO "rank";

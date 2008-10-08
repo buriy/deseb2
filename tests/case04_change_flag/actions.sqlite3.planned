@@ -2,14 +2,15 @@
 ALTER TABLE "case04_change_flag_choice" RENAME TO "case04_change_flag_choice_1337_TMP";
 CREATE TABLE "case04_change_flag_choice" (
     "id" integer NOT NULL PRIMARY KEY,
-    "poll_id" integer NOT NULL REFERENCES "case04_change_flag_poll" ("id"),
+    "poll_id" integer NOT NULL,
     "option" varchar(400) NOT NULL,
     "votes" integer NOT NULL,
     "votes2" integer NOT NULL
 )
 ;
-INSERT INTO "case04_change_flag_choice" SELECT "id","poll_id","choice","votes",'' FROM "case04_change_flag_choice_1337_TMP";
+INSERT INTO "case04_change_flag_choice" SELECT "id","poll_id","choice","votes",'-5' FROM "case04_change_flag_choice_1337_TMP";
 DROP TABLE "case04_change_flag_choice_1337_TMP";
+CREATE INDEX "case04_change_flag_choice_poll_id" ON "case04_change_flag_choice" ("poll_id");
 -- FYI: next few lines could take a while if you have a lot of data
 ALTER TABLE "case04_change_flag_foo" RENAME TO "case04_change_flag_foo_1337_TMP";
 CREATE TABLE "case04_change_flag_foo" (
@@ -18,8 +19,9 @@ CREATE TABLE "case04_change_flag_foo" (
     "gender2" varchar(1) NULL UNIQUE
 )
 ;
-INSERT INTO "case04_change_flag_foo" SELECT "id","gender",'' FROM "case04_change_flag_foo_1337_TMP";
+INSERT INTO "case04_change_flag_foo" SELECT "id","gender",NULL FROM "case04_change_flag_foo_1337_TMP";
 DROP TABLE "case04_change_flag_foo_1337_TMP";
+CREATE INDEX "case04_change_flag_foo_gender" ON "case04_change_flag_foo" ("gender");
 -- FYI: next few lines could take a while if you have a lot of data
 ALTER TABLE "case04_change_flag_poll" RENAME TO "case04_change_flag_poll_1337_TMP";
 CREATE TABLE "case04_change_flag_poll" (

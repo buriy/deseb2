@@ -1,0 +1,4 @@
+Diff: Current DB => Actual case07_change_type.models
+  Table "case07_change_type_poll"
+    Field "rank"
+    * coltype: real [real; ] -> decimal [decimal; ]

@@ -1,2 +1,12 @@
--- add index
-DROP TABLE "case03_rename_model_choice";
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE "case03_rename_model_choice" RENAME TO "case03_rename_model_option_1337_TMP";
+CREATE TABLE "case03_rename_model_option" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL,
+    "choice" varchar(200) NOT NULL,
+    "votes" integer NOT NULL
+)
+;
+INSERT INTO "case03_rename_model_option" SELECT "id","poll_id","choice","number_of_votes" FROM "case03_rename_model_option_1337_TMP";
+DROP TABLE "case03_rename_model_option_1337_TMP";
+CREATE INDEX "case03_rename_model_option_poll_id" ON "case03_rename_model_option" ("poll_id");

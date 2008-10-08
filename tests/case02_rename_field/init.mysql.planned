@@ -1,0 +1,16 @@
+CREATE TABLE `case02_rename_field_poll` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `question` varchar(200) NOT NULL,
+    `pub_date` datetime NOT NULL,
+    `the_author` varchar(200) NOT NULL
+)
+;
+CREATE TABLE `case02_rename_field_choice` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `poll_id` integer NOT NULL,
+    `choice` varchar(200) NOT NULL,
+    `votes` integer NOT NULL
+)
+;
+ALTER TABLE `case02_rename_field_choice` ADD CONSTRAINT poll_id_refs_id_497206e3 FOREIGN KEY (`poll_id`) REFERENCES `case02_rename_field_poll` (`id`);
+CREATE INDEX `case02_rename_field_choice_poll_id` ON `case02_rename_field_choice` (`poll_id`);

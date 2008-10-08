@@ -1,0 +1,15 @@
+ALTER TABLE "case04_change_flag_choice" RENAME COLUMN "choice" TO "option";
+ALTER TABLE "case04_change_flag_choice" ADD COLUMN "option_tmp_1337" varchar(400) NOT NULL;
+UPDATE "case04_change_flag_choice" SET "option_tmp_1337" = "option";
+ALTER TABLE "case04_change_flag_choice" DROP COLUMN "option";
+ALTER TABLE "case04_change_flag_choice" RENAME COLUMN "option_tmp_1337" TO "option";
+ALTER TABLE "case04_change_flag_choice" ADD COLUMN "votes2" integer;
+UPDATE "case04_change_flag_choice" SET "votes2" = '-5' WHERE "votes2" IS NULL;
+ALTER TABLE "case04_change_flag_choice" ALTER COLUMN "votes2" SET NOT NULL;
+ALTER TABLE "case04_change_flag_foo" ADD COLUMN "gender2" varchar(1);
+ALTER TABLE "case04_change_flag_foo" ADD CONSTRAINT case04_change_flag_foo_gender2_unique_constraint UNIQUE("gender2");
+CREATE INDEX "case04_change_flag_foo_gender" ON "case04_change_flag_foo" ("gender");
+ALTER TABLE "case04_change_flag_poll" ADD COLUMN "question_tmp_1337" varchar(100) NOT NULL;
+UPDATE "case04_change_flag_poll" SET "question_tmp_1337" = "question";
+ALTER TABLE "case04_change_flag_poll" DROP COLUMN "question";
+ALTER TABLE "case04_change_flag_poll" RENAME COLUMN "question_tmp_1337" TO "question";

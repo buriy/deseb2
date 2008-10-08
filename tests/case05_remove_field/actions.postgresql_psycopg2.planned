@@ -1,0 +1,3 @@
+ALTER TABLE "case05_remove_field_choice" RENAME COLUMN "votes" TO "number_of_votes";
+ALTER TABLE "case05_remove_field_choice" RENAME COLUMN "choice" TO "option";
+ALTER TABLE "case05_remove_field_poll" DROP COLUMN "author";

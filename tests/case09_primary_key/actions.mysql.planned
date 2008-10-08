@@ -1,0 +1,11 @@
+ALTER TABLE `case09_primary_key_a` RENAME TO `case09_primary_key_ra`;
+ALTER TABLE `case09_primary_key_b` RENAME TO `case09_primary_key_rb`;
+ALTER TABLE `case09_primary_key_rb` CHANGE COLUMN `c001` `r001` integer AUTO_INCREMENT;
+-- FYI: next few lines could take a while if you have a lot of data
+ALTER TABLE `case09_primary_key_c` RENAME TO `case09_primary_key_rc_1337_TMP`;
+CREATE TABLE `case09_primary_key_rc` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY
+)
+;
+INSERT INTO `case09_primary_key_rc` SELECT '0' FROM `case09_primary_key_rc_1337_TMP`;
+DROP TABLE `case09_primary_key_rc_1337_TMP`;

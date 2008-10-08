@@ -1,0 +1,21 @@
+CREATE TABLE `case04_change_flag_poll` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `question` varchar(200) NOT NULL,
+    `pub_date` datetime NOT NULL,
+    `author` varchar(200) NOT NULL
+)
+;
+CREATE TABLE `case04_change_flag_foo` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `gender` varchar(1) NOT NULL
+)
+;
+CREATE TABLE `case04_change_flag_choice` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `poll_id` integer NOT NULL,
+    `choice` varchar(200) NOT NULL,
+    `votes` integer NOT NULL
+)
+;
+ALTER TABLE `case04_change_flag_choice` ADD CONSTRAINT poll_id_refs_id_654805e9 FOREIGN KEY (`poll_id`) REFERENCES `case04_change_flag_poll` (`id`);
+CREATE INDEX `case04_change_flag_choice_poll_id` ON `case04_change_flag_choice` (`poll_id`);

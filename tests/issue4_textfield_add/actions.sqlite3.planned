@@ -1,1 +1,1 @@
-ALTER TABLE "issue4_textfield_add_topic" ADD COLUMN "content" text NULL
+ALTER TABLE "issue4_textfield_add_topic" ADD COLUMN "content" text NULL;

@@ -1,0 +1,15 @@
+CREATE TABLE "case01_add_field_poll" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" timestamp with time zone NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+CREATE TABLE "case01_add_field_choice" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case01_add_field_poll" ("id") DEFERRABLE INITIALLY DEFERRED,
+    "choice" varchar(200) NOT NULL,
+    "votes" integer NOT NULL
+)
+;
+CREATE INDEX "case01_add_field_choice_poll_id" ON "case01_add_field_choice" ("poll_id");

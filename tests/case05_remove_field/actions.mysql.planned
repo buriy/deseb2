@@ -1,0 +1,3 @@
+ALTER TABLE `case05_remove_field_choice` CHANGE COLUMN `votes` `number_of_votes` integer NOT NULL;
+ALTER TABLE `case05_remove_field_choice` CHANGE COLUMN `choice` `option` varchar(200) NOT NULL;
+ALTER TABLE `case05_remove_field_poll` DROP COLUMN `author`;

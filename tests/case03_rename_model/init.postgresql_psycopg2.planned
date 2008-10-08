@@ -1,0 +1,15 @@
+CREATE TABLE "case03_rename_model_poll" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" timestamp with time zone NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+CREATE TABLE "case03_rename_model_choice" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case03_rename_model_poll" ("id") DEFERRABLE INITIALLY DEFERRED,
+    "choice" varchar(200) NOT NULL,
+    "number_of_votes" integer NOT NULL
+)
+;
+CREATE INDEX "case03_rename_model_choice_poll_id" ON "case03_rename_model_choice" ("poll_id");

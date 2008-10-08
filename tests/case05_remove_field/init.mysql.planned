@@ -1,0 +1,16 @@
+CREATE TABLE `case05_remove_field_poll` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `question` varchar(200) NOT NULL,
+    `pub_date` datetime NOT NULL,
+    `author` varchar(200) NOT NULL
+)
+;
+CREATE TABLE `case05_remove_field_choice` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `poll_id` integer NOT NULL,
+    `choice` varchar(200) NOT NULL,
+    `votes` integer NOT NULL
+)
+;
+ALTER TABLE `case05_remove_field_choice` ADD CONSTRAINT poll_id_refs_id_411c312f FOREIGN KEY (`poll_id`) REFERENCES `case05_remove_field_poll` (`id`);
+CREATE INDEX `case05_remove_field_choice_poll_id` ON `case05_remove_field_choice` (`poll_id`);

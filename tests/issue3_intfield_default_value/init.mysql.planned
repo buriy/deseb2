@@ -1,0 +1,7 @@
+CREATE TABLE `issue3_intfield_default_value_channel` (
+    `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    `url` varchar(200) NOT NULL,
+    `source` varchar(50) NOT NULL,
+    `last_updated` datetime NOT NULL
+)
+;

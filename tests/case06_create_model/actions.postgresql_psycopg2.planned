@@ -1,0 +1,32 @@
+CREATE TABLE "case06_create_model_business" (
+    "name" varchar(20) NOT NULL PRIMARY KEY
+)
+;
+CREATE TABLE "case06_create_model_business_employees" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "business_id" varchar(20) NOT NULL,
+    "employee_id" varchar(10) NOT NULL
+)
+;
+CREATE TABLE "case06_create_model_employee" (
+    "employee_code" varchar(10) NOT NULL PRIMARY KEY,
+    "first_name" varchar(20) NOT NULL,
+    "last_name" varchar(20) NOT NULL
+)
+;
+CREATE TABLE "case06_create_model_fun" (
+    "id" serial NOT NULL PRIMARY KEY
+)
+;
+CREATE TABLE "case06_create_model_lol" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "content_type_id" integer NOT NULL,
+    "object_id" integer CHECK ("object_id" >= 0) NOT NULL
+)
+;
+CREATE INDEX "case06_create_model_lol_content_type_id" ON "case06_create_model_lol" ("content_type_id");
+CREATE TABLE "case06_create_model_tiptop" (
+    "id" serial NOT NULL PRIMARY KEY,
+    "yyy_id" integer NULL UNIQUE
+)
+;

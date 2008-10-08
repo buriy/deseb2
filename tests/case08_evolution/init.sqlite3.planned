@@ -1,0 +1,15 @@
+CREATE TABLE "case08_evolution_poll" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "question" varchar(200) NOT NULL,
+    "pub_date" datetime NOT NULL,
+    "author" varchar(200) NOT NULL
+)
+;
+CREATE TABLE "case08_evolution_choice" (
+    "id" integer NOT NULL PRIMARY KEY,
+    "poll_id" integer NOT NULL REFERENCES "case08_evolution_poll" ("id"),
+    "choice" varchar(200) NOT NULL,
+    "votes" integer NOT NULL
+)
+;
+CREATE INDEX "case08_evolution_choice_poll_id" ON "case08_evolution_choice" ("poll_id");

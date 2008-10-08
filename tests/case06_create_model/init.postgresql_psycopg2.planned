@@ -1,0 +1,4 @@
+CREATE TABLE "case06_create_model_empty" (
+    "id" serial NOT NULL PRIMARY KEY
+)
+;
