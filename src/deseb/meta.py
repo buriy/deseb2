@@ -1,8 +1,19 @@
 from deseb.common import NotProvided
+from types import NoneType
+from django.utils.datastructures import SortedDict
 import sha
+
+class EntityDict(SortedDict):
+    def append(self, item):
+        self[item.name] = item
+        
+    def extend(self, items):
+        for x in items:
+            self.append(x)
 
 def indent(strings, delim = '  '):
     return delim+('\n'+delim).join(strings.split('\n'))
+
 
 class DBEntity(object):
     allowed_args = set([])
@@ -13,7 +24,7 @@ class DBEntity(object):
         output = [repr]
         for attr in self.children:
             subitem = getattr(self, attr)
-            output.extend([indent(unicode(s)) for s in subitem])
+            output.extend([indent(unicode(s)) for s in subitem.values()])
         return '\n'.join(output)
     
     def to_dict(self):
@@ -21,11 +32,12 @@ class DBEntity(object):
         if hasattr(self, 'traits'):
             dict['traits'] = self.traits
         for attr in self.children:
-            subdict = {}
-            subitem = getattr(self, attr)
-            for child in subitem:
-                subdict[child.name] = child
-            dict[attr] = subdict
+            #subdict = {}
+            #subitem = getattr(self, attr)
+            #for child in subitem:
+            #    subdict[child.name] = child
+            #dict[attr] = subdict
+            dict[attr] = getattr(self, attr)
         return dict
     
     def __getattr__(self, name):
@@ -55,17 +67,23 @@ class DBEntity(object):
             return self.traits.items()
         else:
             return []
-    
+
 class DBField(DBEntity):
     allowed_args = set(['allow_null', 'coltype', 'primary_key', 'foreign_key',
-                        'unique', 'max_length', 'sequence', 'default', 'dbtype'])
+                        'unique', 'sequence'])
     def __init__(self, name = None, aka=None, **kwargs):
+        self.default = NotProvided
+        if 'default' in kwargs:
+            self.default = kwargs.pop('default')
         if not set(kwargs) <= self.allowed_args:
             raise Exception("Unsupported args: %s" % (set(kwargs) - self.allowed_args))
-        kwargs['default'] = NotProvided
         self.name = name
         self.aka = aka
         self.traits = kwargs
+    
+    @property
+    def dbtype(self):
+        return self.coltype.dbtype
     
     def __repr__(self):
         return 'Field "%s"' % self.name
@@ -75,10 +93,10 @@ class DBField(DBEntity):
 #        return 'Field "%s", %s' % (self.name, ', '.join(traits))
     
 class DBIndex(DBEntity):
-    allowed_args = set(['pk', 'unique'])
-    def __init__(self, name, pk=False, unique=False):
+    allowed_args = set(['pk', 'unique', 'field', 'full_name'])
+    def __init__(self, name, pk=False, unique=False, full_name=None):
         self.name = name
-        self.traits = dict(pk = pk, unique = unique)
+        self.traits = dict(pk = pk, unique = unique, full_name = full_name)
 
     def __repr__(self):
         return 'Index "%s"' % self.name
@@ -88,15 +106,13 @@ class DBTable(DBEntity):
 
     def __init__(self, name, aka=None, **kwargs):
         self.name = name
-        self.fields = []
-        self.indexes = []
+        self.fields = EntityDict()
+        self.indexes = EntityDict()
         self.aka = aka
         self.traits = kwargs
 
-    def get_field(self, name):
-        for f in self.fields:
-            if f.name == name:
-                return f 
+    def get_field(self,  name):
+        return self.fields.get(name, None)
 
     def __repr__(self):
         return 'Table "%s"' % self.name
@@ -105,7 +121,7 @@ class DBSchema(DBEntity):
     children = ('tables',)
     def __init__(self, name = 'Schema'):
         self.name = name
-        self.tables = []
+        self.tables = EntityDict()
     
     def __repr__(self):
         return 'Schema "%s":' % self.name
@@ -113,8 +129,6 @@ class DBSchema(DBEntity):
     def get_hash(self):
         output = self.__unicode__()
         return sha.new(output).hexdigest()[:10]
-
-class EMPTY(object): pass 
 
 class AmbiguityOnRenameException(Exception): pass
 
@@ -131,6 +145,13 @@ class NodeChange(object):
     
     def rformat(self, item):
         return repr(item) 
+    
+    def get_type(self):
+        if isinstance(self.left, DBEntity):
+            return type(self.left)
+        if isinstance(self.right, DBEntity):
+            return type(self.right)
+        return NoneType
     
     def action(self):
         if self.left is None:

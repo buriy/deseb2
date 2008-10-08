@@ -4,6 +4,7 @@ from deseb.common import get_operations_and_introspection_classes
 from deseb.common import management
 from deseb.builder import build_model_schema
 from deseb.storage import get_model_aka
+from deseb.actions import get_installed_tables
 import os, sys, datetime, traceback
 
 DEBUG = False
@@ -11,14 +12,6 @@ DEBUG = False
 def get_sql_evolution(app, style, notify=False):
     "Returns SQL to update an existing schema to match the existing models."
     return get_sql_evolution_detailed(app, style, notify)[2]
-
-def get_installed_tables(app):
-    model_schema = build_model_schema(app)
-    add_tables = set()
-    for model in model_schema.tables:
-        add_tables.add(model.name)
-        add_tables.update(get_model_aka(model))
-    return add_tables
 
 def get_sql_all(app, style):
     return management.sql_all(app, style)

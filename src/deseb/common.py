@@ -90,6 +90,9 @@ class SQL(object):
     def __unicode__(self):
         return '\n'.join(self.actions)
     
+    def __str__(self):
+        return unicode(self).encode('utf-8')
+    
     def extend(self, sql):
         if isinstance(sql, SQL):
             self.actions.extend(sql.actions)
@@ -97,6 +100,8 @@ class SQL(object):
             self.actions.extend(sql)
     
     def append(self, sql):
+        if isinstance(sql, SQL):
+            raise Exception("Use extend to adding SQL to SQL")
         self.actions.append(sql)
 
 if __name__ == "__main__":

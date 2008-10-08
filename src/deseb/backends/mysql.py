@@ -1,11 +1,12 @@
 from deseb.actions import NotNullColumnNeedsDefaultException
 from deseb.backends.base import BaseDatabaseIntrospection
 from deseb.backends.base import BaseDatabaseOperations
-from deseb.builder import get_field_type
 from deseb.common import SQL, NotProvided
 from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
+from deseb.dbtypes import get_column_type
+from deseb.backends.sqlite3 import RebuildTableNeededException
 
 class DatabaseOperations(BaseDatabaseOperations):
     def quote_value(self, s):
@@ -25,6 +26,8 @@ class DatabaseOperations(BaseDatabaseOperations):
             kw('ALTER TABLE ')+ tqn(left.name) +
             kw(' RENAME TO ')+ tqn(right.name) + ';')
     
+    smart_rename_available = False
+    
     def get_change_column_name_sql(self, table, left, right):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
@@ -32,6 +35,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         col_def = fct(right.dbtype)
+        if right.unique:
+            col_def += " UNIQUE"
         if not right.primary_key:
             col_def += ' ' + kw(not right.allow_null and 'NOT NULL' or 'NULL')
         return SQL(
@@ -51,21 +56,25 @@ class DatabaseOperations(BaseDatabaseOperations):
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
         sql = SQL()
 
-        if 'null' in updates or 'type' in updates:
-            if right.default is NotProvided and not right.allow_null: 
-                details = 'column "%s" of table "%s"' % (col_name, table_name)
-                raise NotNullColumnNeedsDefaultException("when modified " + details)
-            if not right.default is NotProvided and not right.allow_null: 
+        if 'primary_key' in updates and right.coltype.attrs.get('auto_increment',False):
+            raise RebuildTableNeededException("mysql can't add auto_increment field")
+
+        if 'null' in updates or 'coltype' in updates:
+            if left.allow_null and not right.allow_null:
+                if right.default is NotProvided: 
+                    details = 'column "%s" of table "%s"' % (col_name, table_name)
+                    raise NotNullColumnNeedsDefaultException("when modified " + details)
                 sql.append(
                     kw('UPDATE ') + tqn(table_name) +
-                    kw(' SET ') + fqn(col_name) + ' = ' + fqv(right.default) + 
+                    kw(' SET ') + fqn(col_name) +
+                    kw(' = ') + fqv(right.default) + 
                     kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;'))
 
         col_def = fct(right.dbtype)
         if not right.primary_key:
             col_def += ' ' + kw(not right.allow_null and 'NOT NULL' or 'NULL')
-        #if right.unique:
-        #    col_def += ' ' + kw('UNIQUE')
+        if right.unique:
+            col_def += ' ' + kw('UNIQUE')
         #if right.primary_key:
         #    col_def += ' ' + kw('PRIMARY KEY')
         sql.append(
@@ -89,24 +98,26 @@ class DatabaseOperations(BaseDatabaseOperations):
         field_output = []
         field_output.append(
             kw('ALTER TABLE ') + tqn(table_name) +
-            kw(' ADD COLUMN ') + fqn(column.name) + ' ' + fct(column.type))
+            kw(' ADD COLUMN ') + fqn(column.name) + ' ' + fct(column.dbtype))
         if column.unique:
             field_output.append(kw('UNIQUE'))
+        if column.primary_key and column.coltype.attrs.get('auto_increment',False):
+            raise RebuildTableNeededException("mysql can't add auto_increment field")
         if column.primary_key:
             field_output.append(kw('PRIMARY KEY'))
         sql.append(' '.join(field_output) + ';')
         if column.primary_key: return sql
-        if default is NotProvided and not column.allow_null: 
-            details = 'column "%s" into table "%s"' % (col_name, table_name)
-            raise NotNullColumnNeedsDefaultException("when added " + details)
+        #if default is NotProvided and not column.allow_null: 
+        #    details = 'column "%s" into table "%s"' % (col_name, table_name)
+        #    raise NotNullColumnNeedsDefaultException("when added " + details)
         if not default is NotProvided and not column.allow_null:
             sql.append(
                 kw('UPDATE ') + tqn(table_name) +
                 kw(' SET ') + fqn(col_name) + ' = ' + fqv(default) +
                 kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;'))
         if not column.allow_null:
-            col_def = fct(column.type) + kw(not column.allow_null and ' NOT NULL' or '')
-            #if unique:
+            col_def = fct(column.dbtype) + kw(not column.allow_null and ' NOT NULL' or '')
+            #if column.unique:
             #    col_def += ' '+ kw('UNIQUE')
             #if primary_key:
             #    col_def += ' '+ kw('PRIMARY KEY')
@@ -114,13 +125,21 @@ class DatabaseOperations(BaseDatabaseOperations):
                 kw('ALTER TABLE ') + tqn(table_name) +
                 kw(' MODIFY COLUMN ') + fqn(col_name) + ' '+
                 kw(col_def+';'))
-        if column.unique:
-            sql.append(
-                kw('ALTER TABLE ') + tqn(table_name) + kw(' ADD CONSTRAINT ') +
-                table_name + '_' + col_name + '_unique_constraint'+
-                kw(' UNIQUE(') + fqn(col_name) + kw(')')+';')
+        #if column.unique:
+        #    sql.append(
+        #        kw('ALTER TABLE ') + tqn(table_name) + kw(' ADD CONSTRAINT ') +
+        #        table_name + '_' + col_name + '_unique_constraint'+
+        #        kw(' UNIQUE(') + fqn(col_name) + kw(')')+';')
         return sql
     
+    def get_drop_index_sql(self, table, idx):
+        qn = self.connection.ops.quote_name
+        kw = self.style.SQL_KEYWORD
+        tqn = lambda s: self.style.SQL_TABLE(qn(s))
+        return SQL(
+             kw('ALTER TABLE ')+ tqn(table.name) 
+            +kw(' DROP INDEX ')+ tqn(idx.full_name) + ';')
+
     def get_drop_column_sql(self, table, column):
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
@@ -139,8 +158,6 @@ class DatabaseOperations(BaseDatabaseOperations):
     def get_autoinc_sql(self, table):
         return None
     
-    
-    
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     
     def __init__(self, connection):
@@ -155,7 +172,12 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         qn = self.connection.ops.quote_name
         cursor.execute("SHOW INDEX FROM %s" % qn(table_name))
         for row in cursor.fetchall():
-            index = DBIndex(name=row[0])
+            #print 'I:', table_name, row
+            if row[2] == 'PRIMARY': continue
+            if row[1] == 0 and row[2] == row[4]: continue #unique
+            index = DBIndex(name=row[4],
+                            unique = not row[1],
+                            full_name = row[2])
             indexes.append(index)
         return indexes
         
@@ -163,34 +185,27 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         table = DBTable(name=table_name)
         cursor.execute("describe %s" % self.connection.ops.quote_name(table_name))
         for row in cursor.fetchall():
+            #print 'T:', table_name, row
             column_name = row[0]
+            coltype = row[1]
+            if row[5]=='auto_increment':
+                coltype += ' AUTO_INCREMENT'
             info = DBField(
                 name = column_name,
-                dbtype = row[1],
-                coltype = get_field_type(row[1]), 
+                coltype = get_column_type(coltype), 
                 primary_key = False,
-                foreign_key = False,
+                foreign_key = None,
                 unique = False,
-                allow_null = False,
-                max_length = None
+                allow_null = False
             )
-            dict = info.traits
-            # maxlength check goes here
-            if row[1][0:7]=='varchar':
-                dict['max_length'] = int(row[1][8:len(row[1])-1])
-            elif row[1]=='text':
-                dict['max_length'] = 65534
-            elif row[1]=='longtext':
-                dict['max_length'] = 100000000
+
+            if row[2]=='YES': 
+                info.allow_null = True
             
-            # f_default flag check goes here
-            if row[2]=='YES': dict['allow_null'] = True
-            else: dict['allow_null'] = False
-            
-            # primary/foreign/unique key flag check goes here
-            if row[3]=='PRI': dict['primary_key'] = True
-            #if row[3]=='FOR': dict['foreign_key'] = True
-            if row[3]=='UNI': dict['unique'] = True
+            if row[3]=='PRI': info.primary_key = True
+            #if row[3]=='FOR': info.foreign_key = True
+            if row[3]=='UNI': info.unique = True
+            #if row[3]=='UNI': print 'unique:', row
             table.fields.append(info)
-        # print table_name, column_name, dict
+        # print table_name, column_name, info.traits
         return table

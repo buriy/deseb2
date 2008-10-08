@@ -1,11 +1,12 @@
 from deseb.actions import NotNullColumnNeedsDefaultException
 from deseb.backends.base import BaseDatabaseIntrospection
 from deseb.backends.base import BaseDatabaseOperations
-from deseb.builder import get_field_type
 from deseb.common import SQL, NotProvided
 from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
+from deseb.dbtypes import get_column_type
+from deseb.backends.sqlite3 import RebuildTableNeededException
 
 class DatabaseOperations(BaseDatabaseOperations):
     def quote_value(self, s):
@@ -18,6 +19,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             return u"'%s'" % unicode(s).replace("'","\'")
     
     pk_requires_unique = False
+    smart_rename_available = True
 
     def get_change_table_name_sql(self, left, right):
         qn = self.connection.ops.quote_name
@@ -37,6 +39,9 @@ class DatabaseOperations(BaseDatabaseOperations):
             kw('ALTER TABLE ') + tqn(table.name)
             + kw(' RENAME COLUMN ') + fqn(left.name)
             + kw(' TO ') + fqn(right.name) + ';')
+    
+    def get_column_index_rebuild_needed(self, table, left, right, updates):
+        return 'coltype' in updates
 
     def get_change_column_def_sql(self, table, left, right, updates):
         table_name = table.name
@@ -44,30 +49,40 @@ class DatabaseOperations(BaseDatabaseOperations):
         sql = SQL()
         qn = self.connection.ops.quote_name
         kw = self.style.SQL_KEYWORD
-        fct = self.style.SQL_COLTYPE 
+        fct = self.style.SQL_COLTYPE
         tqn = lambda s: self.style.SQL_TABLE(qn(s))
         fqn = lambda s: self.style.SQL_FIELD(qn(s))
         fqv = lambda s: self.style.SQL_FIELD(self.quote_value(s))
+        #print table_name, ":\n%s ->\n%s" % (left.traits, right.traits)
+        if 'primary_key' in updates:
+            raise RebuildTableNeededException("we'd rebuild whole table instead of updating primary key field")
         if 'coltype' in updates:
+            null = ' NULL'
+            if not right.allow_null:
+                null = ' NOT NULL'
+            unique = ""
+            if right.unique:
+                unique = " UNIQUE"
             sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) +
-                kw(' ADD COLUMN ') + fqn(col_name+'_tmp') + ' ' + fct(right.dbtype) + ';')
+                kw(' ADD COLUMN ') + fqn(col_name+'_tmp_1337') + ' ' + fct(right.dbtype) + unique + null +';')
             sql.append(
                 kw('UPDATE ') + tqn(table_name) + 
-                kw(' SET ') + fqn(col_name+'_tmp') + 
+                kw(' SET ') + fqn(col_name+'_tmp_1337') + 
                 ' = ' + fqn(col_name) + ';')
             sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + 
                 kw(' DROP COLUMN ') + fqn(col_name) + ';')
             sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + 
-                kw(' RENAME COLUMN ') + fqn(col_name+'_tmp') + 
+                kw(' RENAME COLUMN ') + fqn(col_name+'_tmp_1337') + 
                 kw(' TO ') + fqn(col_name) + ';')
-        elif left.max_length != right.max_length:
+        elif 'max_length' in updates:
             sql.append(
                 kw('ALTER TABLE ') + tqn(table_name) + 
                 kw(' ALTER COLUMN ') + fqn(col_name) + 
                 kw(' TYPE ')+ fct(right.dbtype) + ';')
+        
         if 'sequence' in updates:
             seq_name = left.sequence
             seq_name_correct = right.sequence
@@ -81,21 +96,20 @@ class DatabaseOperations(BaseDatabaseOperations):
                     kw(' SET DEFAULT nextval(')+
                     fqv(seq_name_correct)+'::regclass);')
 
-        if 'null' in updates:
+        if 'allow_null' in updates:
             if right.default is NotProvided and not right.allow_null: 
                 details = 'column "%s" of table "%s"' % (col_name, table_name)
                 raise NotNullColumnNeedsDefaultException("when modified " + details)
-            if not right.default is NotProvided and not right.allow_null: 
+            if not right.allow_null:
                 sql.append(
                     kw('UPDATE ') + tqn(table_name) +
                     kw(' SET ') + fqn(col_name) + ' = ' + fqv(right.default) + 
                     kw(' WHERE ') + fqn(col_name) + kw(' IS NULL;'))
-            if not right.allow_null:
                 sql.append(
                     kw('ALTER TABLE ') + tqn(table_name) +
                     kw(' ALTER COLUMN ') + fqn(col_name) +
                     kw(' SET NOT NULL;'))
-            elif not 'update_type' in updates:
+            elif not 'coltype' in updates:
                 sql.append(
                     kw('ALTER TABLE ') + tqn(table_name) +
                     kw(' ALTER COLUMN ') + fqn(col_name) +
@@ -111,7 +125,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     
     def get_add_column_sql(self, table, column):
         # versions >= sqlite 3.2.0, see http://www.sqlite.org/lang_altertable.html
-        table_name = table.name, 
+        table_name = table.name 
         col_name = column.name
         sql = SQL()
         qn = self.connection.ops.quote_name
@@ -123,8 +137,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         sql.append(
             kw('ALTER TABLE ') + tqn(table_name) +
             kw(' ADD COLUMN ') + fqn(col_name) + ' ' + fct(column.dbtype) + ';')
-        if column.primary_key: 
-            return sql
+        if column.primary_key:
+            raise RebuildTableNeededException("we'd better rebuild all table instead of updating primary_key field")
         if column.default is NotProvided and not column.allow_null: 
             details = 'column "%s" into table "%s"' % (col_name, table_name)
             raise NotNullColumnNeedsDefaultException("when added " + details)
@@ -170,7 +184,13 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         self.connection = connection
     
     def get_table_names(self, cursor):
-        cursor.execute('SELECT table_name FROM information_schema.tables')
+        #cursor.execute('SELECT table_name FROM information_schema.tables')
+        cursor.execute("""SELECT c.relname
+            FROM pg_catalog.pg_class c
+            LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relkind IN ('r', 'v', '')
+                AND n.nspname NOT IN ('pg_catalog', 'pg_toast')
+                AND pg_catalog.pg_table_is_visible(c.oid)""")
         return [row[0] for row in cursor.fetchall()]
     
     def get_indexes(self, cursor, table_name):
@@ -193,8 +213,12 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             # Here, we skip any indexes across multiple fields.
             if ' ' in row[1]:
                 continue
-            if not row[3]:
-                index = DBIndex(name = table_name+'_'+row[0], pk=row[3], unique=row[2])
+            if not row[3] and not row[2]:
+                #print table_name, row
+                index = DBIndex(name = row[0],
+                                full_name = table_name+'_'+row[0], 
+                                unique=row[2],
+                                pk=row[3])
                 indexes.append(index)
         return indexes
 
@@ -208,26 +232,17 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                        "from pg_catalog.pg_class c where c.relname ~ '^%s$') "
                        "AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum" % table_name)
         for row in cursor.fetchall():
-            column = DBField(
+            info = DBField(
                 name = row[0], 
                 primary_key = False,
-                foreign_key = False,
+                foreign_key = None,
                 unique = False,
-                dbtype = row[1],
-                coltype = get_field_type(row[1]), 
-                allow_null = False,
-                max_length = None
+                coltype = get_column_type(row[1]), 
+                allow_null = False
             )
-            table.fields.append(column)
-            col = column.traits
-            col['allow_null'] = not row[3]
-            if row[1][0:17]=='character varying':
-                col['max_length'] = int(row[1][18:-1])
-            if row[1][0:7]=='varchar':
-                col['max_length'] = int(row[1][8:-1])
-            elif row[1] == 'text':
-                col['max_length'] = 1000000000
-                # null flag check goes here
+            table.fields.append(info)
+            info.allow_null = not row[3]
+
         cursor.execute("""
             select pg_constraint.conname, pg_constraint.contype, pg_attribute.attname 
             from pg_constraint, pg_attribute, pg_class 
@@ -238,13 +253,10 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             pg_class.relname = %s
             """, [table_name])
         for row in cursor.fetchall():
-            col = table.get_field(row[2]).traits
-            if row[1]=='p': col['primary_key'] = True
-            if row[1]=='f': col['foreign_key'] = True
-            if row[1]=='u': col['unique']= True
-        for field in table.fields:
-            if field.primary_key:
-                field.foreign_key = False
+            info = table.get_field(row[2])
+            if row[1]=='p': info.primary_key = True
+            #if row[1]=='f' and not info.primary_key: info.foreign_key = True
+            if row[1]=='u': info.unique= True
         # default value check
         cursor.execute("select pg_attribute.attname, adsrc from pg_attrdef, pg_attribute "
                        "WHERE pg_attrdef.adrelid=pg_attribute.attrelid and "
@@ -253,8 +265,8 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                        "from pg_catalog.pg_class c where c.relname ~ '^%s$')" % table_name)
         
         for row in cursor.fetchall():
-            col = table.get_field(row[0]).traits
-            if row[1][0:7] == 'nextval': 
+            info = table.get_field(row[0])
+            if row[1][0:7] == 'nextval':
                 if row[1].startswith("nextval('") and row[1].endswith("'::regclass)"):
-                    col['sequence'] = row[1][9:-12]
+                    info.sequence = row[1][9:-12]
         return table

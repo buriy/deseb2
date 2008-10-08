@@ -41,27 +41,33 @@ class AkaCache(object):
             #FIXME: can contain only app-owned models
             #XXX: no duplicates possible
             if m in self.model_aka: raise Exception("Duplicate model_rename found for model %s" % m)
-            if isinstance(aka, basestring): aka = set([aka])
-            self.model_aka[m] = aka 
+            self.rename_model(self, app_label, m, aka) 
         for m, field_aka in getattr(data, 'field_renames', {}).iteritems():
             #FIXME: can contain only app-owned models and fields
             #XXX: no duplicates possible
             if m in self.field_aka: raise Exception("Duplicate field_rename found for model %s" % m)
-            self.field_aka[m] = field_aka 
+            for f, aka in field_aka:
+                self.rename_field(app_label, m, f, aka)
     
-    def rename_model(self, app_label, model, aka):
-        pass
+    def rename_model(self, app_label, model_name, aka):
+        if isinstance(aka, basestring): aka = set([aka])
+        self.model_aka[model_name] = aka    
     
-    def rename_field(self, app_label, model, field, aka):
-        pass
+    def rename_field(self, app_label, model_name, field, aka):
+        self.field_aka.setdefault(model_name, {})
+        if isinstance(aka, basestring): aka = set([aka])
+        self.field_aka[model_name][field] = aka 
     
-    def convert_model_to_table(self, model, aka):
-        return "%s_%s" % (model._meta.app_label, aka.lower())
+    def get_table(self, app_label, object_name):
+        return "%s_%s" % (app_label, object_name.lower())
     
-    def convert_model_akas_to_tables(self, model):
+    def get_model_table(self, model):
+        return model._meta.db_table
+    
+    def convert_model_akas_to_tables(self, app_label, akas):
         tables = set()
-        for x in model._meta.aka:
-            tables.add(self.convert_model_to_table(model, x))
+        for object_name in akas:
+            tables.add(self.get_table(app_label, object_name))
         return tables
     
     def update_with_aka(self, app_label):
@@ -69,11 +75,11 @@ class AkaCache(object):
         if added_aka_support:
             for model in get_models(get_app(app_label)):
                 if model._meta.aka:
-                    self.model_aka[model._meta.object_name] = self.convert_model_akas_to_tables(model)
+                    model_akas = self.convert_model_akas_to_tables(app_label, model._meta.aka)
+                    self.rename_model(app_label, model._meta.object_name, model_akas)
                 for field in model._meta.fields:
                     if field.aka:
-                        self.field_aka.setdefault(model._meta.object_name, {})
-                        self.field_aka[model._meta.object_name][field.name] = field.aka
+                        self.rename_field(app_label, model._meta.object_name, field.column, field.aka)
             
     def save(self, app_label, rev='current'):
         app_models = [model._meta.object_name for model in get_models(get_app(app_label))]
@@ -102,7 +108,9 @@ class AkaCache(object):
     
     def get_model_aka(self, model, rev='current'):
         self._load(model._meta.app_label, rev)
-        return self.model_aka.get(model._meta.object_name, set())
+        akas = self.model_aka.get(model._meta.object_name, set())
+        #if akas: print "getting_model_aka:", self.get_model_table(model), '->', akas 
+        return akas
     
     def get_table_aka(self, app, table, rev='current'):
         self._load(app, rev)

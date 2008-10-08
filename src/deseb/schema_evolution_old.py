@@ -199,7 +199,7 @@ def get_field_type(f):
 
 def compare_field_length(f, column_flags):
     from django.db.models.fields import CharField, SlugField, AutoField
-    f_maxlength = str(getattr(f, 'maxlength', getattr(f, 'max_length', None)))
+    f_maxlength = str(getattr(f, 'max_length', getattr(f, 'maxlength', None)))
     db_maxlength = str(column_flags.get('max_length', 64000))
     return(not f.primary_key and isinstance(f, CharField) and db_maxlength!= f_maxlength) or \
           (not f.primary_key and isinstance(f, SlugField) and db_maxlength!= f_maxlength)

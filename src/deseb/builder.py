@@ -7,6 +7,7 @@ from deseb.meta import DBIndex
 from deseb.common import NotProvided, get_app_models
 from django.contrib.contenttypes.generic import GenericRelation
 from deseb.storage import get_model_aka, get_field_aka
+from deseb.dbtypes import get_field_type
 
 def get_field_default(column, empty=NotProvided):
     if column.default is NotProvided:
@@ -14,22 +15,6 @@ def get_field_default(column, empty=NotProvided):
     if callable(column.default): 
         return empty
     return column.default
-
-def get_field_type(f, empty='unknown'):
-    if not f: return empty
-    f = f.split('(')[0].split(' CHECK')[0]
-    if f in ['integer', 'serial']: return 'int'
-    if f in ['tinyint']: return 'bool'
-    if f in ['character varying']: return 'varchar'
-    if f in ['decimal']: return 'numeric'
-    return f    
-
-def get_max_length(f):
-    if isinstance(f, ForeignKey):
-        type = f.db_type()
-        if '(' in type and ')' in type:
-            return int(f.db_type().split('(')[1].split(')')[0])
-    return f.max_length
 
 #def compare_field_length(f, column_flags):
 #    from django.db.models.fields import CharField, SlugField
@@ -41,13 +26,12 @@ def get_max_length(f):
 def build_model_flags(model, f):
     info = DBField(
         name = f.attname,
-        allow_null = f.null,
-        dbtype = f.db_type(),
-        coltype = get_field_type(f.db_type()),
-        foreign_key = isinstance(f, ForeignKey),
+        allow_null = f.null and not f.primary_key,
+        default = get_field_default(f),
+        coltype = get_field_type(f),
+        foreign_key = None,#isinstance(f, ForeignKey) or None,
         primary_key = f.primary_key,
         unique = f.unique and not f.primary_key,
-        max_length = get_max_length(f),
         aka = get_field_aka(model, f.name))
     return info
 
@@ -57,10 +41,14 @@ def build_model_table(_app, model):
     for f in model._meta.local_fields:
         #existing_relations = introspection.get_relations(cursor,db_table)
         flags = build_model_flags(model, f)
+        from django.conf import settings
+        if settings.DATABASE_ENGINE.startswith('postgres') and isinstance(f, AutoField):
+            flags.sequence = table.name+"_"+f.column+"_seq"
         table.fields.append(flags)
         if f.db_index and not f.primary_key and not f.unique:
-            name = '%s_%s' % (table_name, f.column)
-            table.indexes.append(DBIndex(name=name))
+            #name = '%s_%s' % (table_name, f.column)
+            table.indexes.append(DBIndex(name=f.column,
+                                         full_name = table_name + '_' + f.column))
     return table
 
 def get_m2m_fields(model, f):

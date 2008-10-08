@@ -4,6 +4,7 @@ from deseb.common import fixed_sql_model_create, SQL, management, get_installed_
 from deseb.common import get_operations_and_introspection_classes
 from deseb.meta import DBField, DBIndex, TreeDiff, DBTable, DBEntity, DBSchema
 from deseb.storage import get_model_aka, get_table_aka
+from deseb.meta import AttributeChange
 
 DEBUG = False
 
@@ -18,46 +19,22 @@ def get_creation_module():
     from django.db import connection
     return connection.creation
 
-def get_sql_indexes_for_field(model, f, style):
-    "Returns the CREATE INDEX SQL statement for a single field"
-    from django.db import backend, connection
-    output = SQL()
-    if f.db_index and not (f.primary_key or f.unique):
-        unique = f.unique and 'UNIQUE ' or ''
-        try:
-            tablespace = f.db_tablespace or model._meta.db_tablespace
-        except: # v0.96 compatibility
-            tablespace = None
-        if tablespace and backend.supports_tablespaces:
-            tablespace_sql = ' ' + backend.get_tablespace_sql(tablespace)
-        else:
-            tablespace_sql = ''
-        output.append(
-            style.SQL_KEYWORD('CREATE %sINDEX' % unique) + ' ' + 
-            style.SQL_TABLE(connection.ops.quote_name('%s_%s' % (model._meta.db_table, f.column))) + ' ' + 
-            style.SQL_KEYWORD('ON') + ' ' + 
-            style.SQL_TABLE(connection.ops.quote_name(model._meta.db_table)) + ' ' + 
-            "(%s)" % style.SQL_FIELD(connection.ops.quote_name(f.column)) + 
-            "%s;" % tablespace_sql
-       )
-    return output
-    
 class Actions(object):
-    types = DBEntity
-    def __init__(self, object, style):
-        if self.types and not isinstance(object, self.types):
-            raise Exception("Not compatible object passed")
-        self.object = object #DBTable
+    parents = DBEntity
+    def __init__(self, parent, style):
+        if self.parents and not isinstance(parent, self.parents):
+            raise Exception("Not compatible parent passed")
+        self.object = parent #DBTable
         self.style = style
         
     def process(self, changes):
         commands = []
         for change in changes:
-            print ' ', repr(change) 
+            if DEBUG: print ' ', repr(change) 
             method = getattr(self, 'do_'+change.action())
             output = method(change)
             if output is None: 
-                raise Exception("Method %s.%s returned nothing." % (method.__class__, method.__name__))
+                raise Exception("Method %s.%s returned nothing." % (self.__class__.__name__, method.__name__))
             if isinstance(output, SQL):
                 commands.append((change, output))
             else:
@@ -65,90 +42,129 @@ class Actions(object):
                 
         return commands
 
-class FieldActions(Actions):
-    types = DBField
+class PropertyActions(Actions):
+    parents = DBField
     def do_add(self, change):            
         return SQL('-- add property')
     def do_remove(self, change):
         return SQL('-- remove property')
-#       change, self.ops.get_drop_column_sql([change.left.name])
     def do_change(self, change):
         return SQL('-- update property')
     def do_rename(self, change):
-        return SQL('-- rename table')
-#       change, self.ops.get_change_column_sql(change.left.name, change.right.name)
+        return SQL('-- rename property')
 
-class TableActions(Actions):
-    types = DBTable 
+class FieldActions(Actions):
+    parents = DBTable 
     def __init__(self, table, style):
-        super(TableActions, self).__init__(table, style)
+        super(FieldActions, self).__init__(table, style)
         self.ops, _introspection = get_operations_and_introspection_classes(style)
-        _app, self.model = self.ops.get_model_from_table_name(table.name)
+        self.side_effects = []
     
     def do_add(self, change):
-        if isinstance(change.right, DBField):
-            #model_field = self.model._meta.get_field(change.right.name)
-            #change.right.dbtype = model_field.db_type() 
-            #change.right.default = model_field.default
-            return self.ops.get_add_column_sql(self.object, change.right)
-        elif isinstance(change.right, DBIndex):
-            return SQL('-- add index')
+        return self.ops.get_add_column_sql(self.object, change.right)
 
     def do_update(self, change):
+        #print 'update fields:\n', unicode(change)
         updates = set()
         for attr in change.nested:
             updates.add(attr.klass)
-        print 'UPD:', updates
-        #model_field = self.model._meta.get_field(change.right.name)
-        #change.right.dbtype = model_field.db_type() 
-        #change.right.default = model_field.default
-        return self.ops.get_change_column_def_sql(self.object, change.left, change.right, updates)
-        #return FieldActions(change.left, self.style).process(change.nested)
+        if self.ops.get_column_index_rebuild_needed(self.object, change.left, change.right, updates):
+            self.side_effects.append(('REMOVED INDEX', change.left.name))
+        sql = self.ops.get_change_column_def_sql(self.object, change.left, change.right, updates)
+        return sql
         
     def do_rename(self, change):
-        return self.ops.get_change_column_name_sql(self.object, change.left, change.right)
+        #print 'rename fields:\n', unicode(change)
+        sql = self.ops.get_change_column_name_sql(self.object, change.left, change.right)
+        if change.nested and self.ops.smart_rename_available:
+            sql.extend(self.do_update(change))
+        return sql
         
     def do_remove(self, change):
-        return self.ops.get_drop_column_sql(self.object, change.left.name)
+        self.side_effects.append(('REMOVED INDEX', change.left.name))
+        return self.ops.get_drop_column_sql(self.object, change.left)
 
-class SchemaActions(Actions):
-    types = DBSchema 
+class IndexActions(Actions):
+    parents = DBTable 
+    def __init__(self, table, style):
+        super(IndexActions, self).__init__(table, style)
+        self.ops, _introspection = get_operations_and_introspection_classes(style)
+    
+    def do_add(self, change):
+        if not self.object.get_field(change.right.name):
+            #print "can't add index %s_%s" % (self.object.name, change.right.name)
+            return SQL()
+        return self.ops.get_create_index_sql(self.object, change.right)
+
+    def do_remove(self, change):
+        #if not self.object.get_field(change.left.name):
+        #    print "can't remove index %s_%s" % (self.object.name, change.left.name)
+        #    return SQL()
+        return self.ops.get_drop_index_sql(self.object, change.left)
+
+    def do_rename(self, change):
+        sql = self.do_remove(change)
+        sql.extend(self.do_add(change))
+        return sql
+        
+    def do_update(self, change):
+        return self.do_rename(change)
+
+class TableActions(Actions):
+    parents = DBSchema 
     def __init__(self, schema, style):
-        super(SchemaActions, self).__init__(schema, style)
+        super(TableActions, self).__init__(schema, style)
         self.ops, _introspection = get_operations_and_introspection_classes(style)
 
     def do_add(self, change):
-        _app, model = self.ops.get_model_from_table_name(change.right.name)
-        if model:
-            sql, _refs = fixed_sql_model_create(model, {}, self.style)
-        else:
-            #probably m2m model 
-            #raise Exception("Internal error. Model to add is not found")
-            print change.right.fields[1]
-            
-            creation = get_creation_module()
-            creation.sql_for_many_to_many_field(self.object,  )
-             
-        return SQL(sql)
-
+        sql = self.ops.get_create_table_sql(change.right)
+        sql.extend(self.ops.get_create_table_indexes_sql(change.right))
+        return sql
     def do_remove(self, change):
         return self.ops.get_drop_table_sql(change.left)
     
+    def do_rebuild(self, change):
+        renames = {}
+        for nest in change.nested:
+            if nest.action() == 'rename' and issubclass(nest.get_type(), DBField):
+                renames[nest.right.name] = nest.left.name
+        return self.ops.get_rebuild_table_sql(change.left, change.right, renames)
+    
+    def do_try_update(self, change):
+        flds = [c for c in change.nested if issubclass(c.get_type(), DBField)]
+        fld_acts = FieldActions(change.right, self.style)
+        fld_cmds = fld_acts.process(flds)
+        idxs_removed = set([n for op, n in fld_acts.side_effects if op == 'REMOVED INDEX'])
+        #print 'removed for', change.left.name, '->', change.right.name, ':', idxs_removed
+        real_indexes = DBTable(name = change.left.name, aka = change.left.aka)
+        for n, idx in change.left.indexes.items():
+            if not n in idxs_removed:
+                real_indexes.indexes.append(idx)
+        idxs_diff = TreeDiff(real_indexes, change.right)
+        #print 'Indexes diff:', unicode(idxs_diff.changes)
+        if idxs_diff:
+            idxs = [c for c in idxs_diff.changes if issubclass(c.get_type(), DBIndex)]
+            #print 'diff:', [c.left.full_name for c in idxs if c.left]
+        idx_cmds = IndexActions(change.right, self.style).process(idxs)
+        return fld_cmds + idx_cmds
+
     def do_update(self, change):
         try:
-            return TableActions(change.left, self.style).process(change.nested)
+            return self.do_try_update(change)
         except RebuildTableNeededException:
-            renames = {}
-            for nest in change.nested:
-                if nest.action() == 'rename':
-                    renames[nest.right.name] = nest.left.name 
-            return self.ops.get_rebuild_table_sql(change.left, change.right, renames)
+            return self.do_rebuild(change)
 
     def do_rename(self, change):
-        sql = self.ops.get_change_table_name_sql(change.left.name, change.right.name)
-        if change.nested:
-            sql.append(self.do_update(change))
-        sql.extend()
+        try:
+            sql = SQL()
+            sql.extend(self.ops.get_change_table_name_sql(change.left, change.right))
+            if change.nested:
+                commands = [(change, sql)]
+                commands.extend(self.do_try_update(change))
+                return commands
+        except RebuildTableNeededException:
+            return self.do_rebuild(change)
+        return sql
 
 def get_possible_app_models(cursor, app_name):
     table_list = get_introspection_module().get_table_list(cursor)
@@ -176,9 +192,9 @@ def get_installed_tables(app, model_schema = None):
     if model_schema is None:
         model_schema = build_model_schema(app)
     add_tables = set()
-    for model in model_schema.tables:
-        add_tables.add(model.name)
-        add_tables.update(get_table_aka(app_name, model.name))
+    for name, model in model_schema.tables.items():
+        add_tables.add(name)
+        add_tables.update(get_table_aka(app_name, name))
     return add_tables
 
 def get_introspected_evolution_options(app, style):
@@ -186,8 +202,8 @@ def get_introspected_evolution_options(app, style):
     _ops, introspection = get_operations_and_introspection_classes(style)
     cursor = connection.cursor()
     app_name = app.__name__.split('.')[-2]
-    print '-'*55
-    print 'Application "%s":' % app_name
+    if DEBUG: print '-'*55
+    if DEBUG: print 'Application "%s":' % app_name
 
     model_schema = build_model_schema(app)
     
@@ -197,7 +213,7 @@ def get_introspected_evolution_options(app, style):
     
     diff = TreeDiff(db_schema, model_schema)
     output = []
-    actions = SchemaActions(model_schema, style).process(diff.changes)
+    actions = TableActions(model_schema, style).process(diff.changes)
     for _change, sql in actions:
         output.extend(sql.actions)
     return output

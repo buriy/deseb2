@@ -2,7 +2,7 @@ class DatabaseIntrospection:
     def get_known_column_flags_new(self, cursor, table_name, column_name):
         dict = {
             'primary_key': False,
-            'foreign_key': False,
+            'foreign_key': None,
             'unique': False,
 #DEFAULT    'default': '',
             'max_length': None,

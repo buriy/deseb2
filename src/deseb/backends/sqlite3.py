@@ -1,11 +1,11 @@
 from deseb.backends.base import BaseDatabaseIntrospection
 from deseb.backends.base import BaseDatabaseOperations
-from deseb.builder import get_field_type
 from deseb.common import NotProvided
 from deseb.common import SQL
 from deseb.meta import DBField
 from deseb.meta import DBIndex
 from deseb.meta import DBTable
+from deseb.dbtypes import get_column_type
 
 try: set 
 except NameError: from sets import Set as set   # Python 2.3 fallback 
@@ -61,7 +61,7 @@ class DatabaseOperations(BaseDatabaseOperations):
                 parts += ['DEFAULT', fqv(column.default)]
         return SQL(' '.join(parts)+';')
     
-    def get_drop_column_sql(self, table_name, col_name):
+    def get_drop_column_sql(self, table, column):
         raise RebuildTableNeededException("sqlite does not support deleting columns")
     
     def get_drop_table_sql(self, table):
@@ -98,14 +98,17 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         for row in cursor.fetchall():
             #print table_name, row
             if row[2] == 1: continue # sqlite_autoindex_* indexes
+            cursor.execute("PRAGMA index_info(%s)" % qn(row[1]))
+            columns = cursor.fetchall()
+            if len(columns)>1: continue
+            #print table_name, row, '=>', columns
             index = DBIndex(
                 pk = False,
-                name = row[1],
-                unique = False 
+                name = columns[0][2],
+                full_name = row[1],
+                unique = False
             )
             indexes.append(index)
-            # cursor.execute("PRAGMA index_info(%s)" % qn(row[1]))
-            # print table_name, row, '=>', cursor.fetchall()
         return indexes
     
     def get_table(self, cursor, table_name):
@@ -114,24 +117,18 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         
         cursor.execute("PRAGMA table_info(%s)" % qn(table_name))
         for row in cursor.fetchall():
-            column = DBField(
+            info = DBField(
                 name = row[1], 
                 primary_key = False, 
-                foreign_key = False,
+                foreign_key = None,
                 unique = False, 
                 allow_null = False,
-                dbtype = row[2],
-                coltype = get_field_type(row[2]), 
-                max_length = None
+                coltype = get_column_type(row[2])
             )
-            table.fields.append(column)
-            col = column.traits
-            # maxlength check goes here
-            if row[2][0:7]=='varchar':
-                col['max_length'] = int(row[2][8:-1])
-                col['coltype'] = 'varchar'
+            table.fields.append(info)
+            col = info.traits
 
-                # f_default flag check goes here
+            # f_default flag check goes here
             col['allow_null'] = (row[3]==0)
                 
         cursor.execute("select sql from sqlite_master where name=%s;" % qn(table_name))
@@ -143,6 +140,6 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
                 colname = column_description.split('"',2)[1]
                 col = table.get_field(colname).traits
                 col['primary_key'] = ' PRIMARY KEY' in column_description
-                col['foreign_key'] = ' REFERENCES ' in column_description
+                #col['foreign_key'] = ' REFERENCES ' in column_description or None
                 col['unique'] = ' UNIQUE' in column_description or ' UNIQUE' in column_description  
         return table
