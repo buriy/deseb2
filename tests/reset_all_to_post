@@ -1,3 +1,0 @@
-for a in case* issue* ; do
-    cd $a/; rm models.py; cp models.py.post models.py; cd ..;
-done

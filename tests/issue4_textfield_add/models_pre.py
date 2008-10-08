@@ -3,7 +3,7 @@ import deseb
 
 class Topic(models.Model):
     title = models.CharField(max_length=255, unique=True)
-    slug = models.SlugField(prepopulate_from=['title'])
+    slug = models.SlugField()
     feature = models.IntegerField(default=0)
     hidden = models.BooleanField(default=False)
     order = models.IntegerField(default=0)

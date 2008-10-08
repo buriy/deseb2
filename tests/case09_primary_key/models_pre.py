@@ -1,22 +1,20 @@
 from django.db import models
-import datetime
-import deseb
  
 class A(models.Model):
     "base with min flags"
     c001 = models.AutoField(primary_key=True)
     class Meta:
-    	aka = 'rA'
+        aka = 'rA'
 
 class B(models.Model):
     "base with max flags"
     c001 = models.AutoField(primary_key=True)
     class Meta:
-    	aka = 'rB'
+        aka = 'rB'
 
 class C(models.Model):
     "all with akas"
     c001 = models.AutoField(primary_key=True, aka='xxx')
     class Meta:
-    	aka = 'rC'
+        aka = 'rC'
     

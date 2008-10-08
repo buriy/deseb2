@@ -8,7 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 
 class Empty(models.Model):
     pass
-        
+
 class Employee(models.Model):
     employee_code = models.CharField(max_length=10, primary_key=True,
             db_column = 'code')

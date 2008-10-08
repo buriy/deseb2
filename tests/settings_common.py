@@ -73,6 +73,7 @@ INSTALLED_APPS = (
     'case07_change_type',
     'case08_evolution',
     'case09_primary_key',
+    'case10_update_indexes',
     'case666_everything',
     'issue3_intfield_default_value',
     'issue4_textfield_add',

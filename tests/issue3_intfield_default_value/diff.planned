@@ -1,3 +1,0 @@
-Diff: Current DB => Actual issue3_intfield_default_value.models
-  Table "issue3_intfield_default_value_channel"
-  + Field "visits"

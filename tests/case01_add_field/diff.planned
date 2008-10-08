@@ -1,9 +1,0 @@
-Diff: Current DB => Actual case01_add_field.models
-  Table "case01_add_field_choice"
-  + Field "content"
-  + Field "creatorIp"
-  + Field "hasSomething"
-  + Field "votes2"
-  + Field "votes3"
-  Table "case01_add_field_poll"
-  + Field "pub_date2"

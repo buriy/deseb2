@@ -1,5 +1,4 @@
 from django.db import models
-import deseb
 
 class Poll(models.Model):
     question = models.CharField(max_length=100)

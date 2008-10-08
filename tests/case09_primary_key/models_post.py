@@ -1,6 +1,4 @@
 from django.db import models
-import datetime
-import deseb
 
 class rA(models.Model):
     "base with min flags"

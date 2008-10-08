@@ -1,9 +1,0 @@
-Diff: Current DB => Actual case03_rename_model.models
-  Table "case03_rename_model_option"
-  + Index "case03_rename_model_option_poll_id"
-- Table "case03_rename_model_choice"
--   Field "id"
--   Field "poll_id"
--   Field "choice"
--   Field "number_of_votes"
--   Index "case03_rename_model_choice_poll_id"

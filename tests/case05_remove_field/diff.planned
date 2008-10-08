@@ -1,6 +1,0 @@
-Diff: Current DB => Actual case05_remove_field.models
-  Table "case05_remove_field_choice"
-  * Field "votes" => Field "number_of_votes"
-  * Field "choice" => Field "option"
-  Table "case05_remove_field_poll"
-  - Field "author"

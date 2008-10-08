@@ -1,18 +1,19 @@
-from shutil import copy
 import os
 import sys
 
-DEBUG = True
+DEBUG = '--debug' in sys.argv
+WRITES = not '--skip-log' in sys.argv
 
-def copy_models(app_name, version):
-    copy(app_name+"/models."+version+".py", app_name+"/models.py")
+#def copy_models(app_name, version):
+#    copy(app_name+"/models."+version+".py", app_name+"/models.py")
 
 def write_file(fn, contents):
-    f = open(fn, 'wt')
-    if isinstance(contents, (list, tuple)):
-        contents = u'\n'.join(map(unicode, contents)).encode('utf-8') 
-    f.write(contents)
-    f.close()
+    if WRITES:
+        f = open(fn, 'wt')
+        if isinstance(contents, (list, tuple)):
+            contents = u'\n'.join(map(unicode, contents)).encode('utf-8') 
+        f.write(contents)
+        f.close()
 
 def reload_models(app_name, version):
     from django.db.models.loading import cache
@@ -24,11 +25,22 @@ def run_sql(commands):
     from django.db import transaction
     cursor = connection.cursor()
     for action in commands:
+        if action.strip().startswith('--'): continue
         try:
             cursor.execute(action)
         except:
             print "Error running SQL command:", action
             raise
+
+def drop_all_tables():
+    from django.core.management.color import no_style
+    from django.db import connection
+    from deseb.meta import DBTable
+    from deseb.common import get_operations_and_introspection_classes
+    _ops, introspection = get_operations_and_introspection_classes(no_style())
+    all_tables = introspection.get_table_names(connection.cursor())
+    for table in all_tables:
+        run_sql(_ops.get_drop_table_sql(DBTable(table)).actions)
 
 def modeltest(app_name, use_aka=True):
     if not app_name:
@@ -36,56 +48,72 @@ def modeltest(app_name, use_aka=True):
     if not os.path.exists('settings.py'):
         raise Exception('Oops... file settings.py does not exist! Please copy your settings there!')
     from django.conf import settings
-    from django.db.models.loading import get_apps, get_app, get_models
-    from django.core.management.sql import sql_reset
-    from django.core.management.color import no_style
+    from django.db.models.loading import get_apps, get_app
     from deseb.schema_evolution import evolvediff
+    from django.core.management.color import no_style
     from deseb.actions import get_introspected_evolution_options
-    from django.core.management.sql import sql_delete, sql_create
+    from django.core.management.sql import sql_create, sql_indexes
     from django.db.transaction import commit_on_success
-    print "Test %s" % app_name
+    if DEBUG:
+        print "Test %s" % app_name
     #reset on post state and pre state
     from deseb import add_aka_support
     if use_aka:
         add_aka_support()
     
+    
     style = no_style()
     settings.INSTALLED_APPS = tuple(list(settings.INSTALLED_APPS[:5]) + [app_name])
     
     write_file(app_name+"/models.py", '') # re-init models.py
+    write_file(app_name+"/errdiff.%s.actual" % settings.DATABASE_ENGINE, "")
+    write_file(app_name+"/errors.%s.actual" % settings.DATABASE_ENGINE, "")
     get_apps()
+    
+    drop_all_tables()
     
     reload_models(app_name, 'pre')    
     app = get_app(app_name)
-    create = sql_create(app, style)
+    create = sql_create(app, style) + sql_indexes(app, style)
     write_file(app_name+"/init.%s.actual" % settings.DATABASE_ENGINE, create)
     #FIXME: compare to init.correct later instead of copying
-    write_file(app_name+"/init.%s.planned"% settings.DATABASE_ENGINE, create)
+    write_file(app_name+"/init.%s.planned" % settings.DATABASE_ENGINE, create)
     
-    reset = sql_reset(app, style)
+    reset = sql_create(app, style)
+    #print 'SQL:', '\n'.join(reset)
     commit_on_success(run_sql)(reset)
+    
+    reset_idx = sql_indexes(app, style)
+    run_sql(reset_idx)
     
     reload_models(app_name, 'post')
     if use_aka:
         from deseb.storage import update_with_aka, save_renames
         update_with_aka(app_name)
         save_renames(app_name)
+
     diff = evolvediff(app)
     write_file(app_name+"/diff.%s.actual" % settings.DATABASE_ENGINE, diff)
     #FIXME: compare to diff.correct later instead of copying
-    write_file(app_name+"/diff.planned", diff)
+    write_file(app_name+"/diff.%s.planned" % settings.DATABASE_ENGINE, diff)
     
     actions = get_introspected_evolution_options(app, style)
     write_file(app_name+"/actions.%s.actual" % settings.DATABASE_ENGINE, actions)
     #FIXME: compare to diff.correct later instead of copying
     write_file(app_name+"/actions.%s.planned" % settings.DATABASE_ENGINE, actions)
-    commit_on_success(run_sql)(actions)
-
+    try:
+        commit_on_success(run_sql)(actions)
+    except:
+        from django.db import transaction
+        transaction.rollback()
+        raise
+    
     diff = evolvediff(app)
-    write_file(app_name+"/misses.%s.actual" % settings.DATABASE_ENGINE, actions)
-    if diff:
+    write_file(app_name+"/errdiff.%s.actual" % settings.DATABASE_ENGINE, diff)
+    diff1 = diff.split('\n',1)[1]
+    if diff1:
         print "Errors:"
-        print diff.split('\n',1)[1]
+        print diff1
 
     try:
         actions = get_introspected_evolution_options(app, style)
@@ -94,6 +122,7 @@ def modeltest(app_name, use_aka=True):
     write_file(app_name+"/errors.%s.actual" % settings.DATABASE_ENGINE, actions)
     #FIXME: compare to diff.correct later instead of copying
     #write_file(app_name+"/errors.%s.planned" % settings.DATABASE_ENGINE, actions)
+    return diff1
 
 def alter_paths():
     DIR = os.path.dirname(os.path.abspath(__file__))                                                                        
@@ -105,11 +134,17 @@ def alter_paths():
 
 if __name__ == "__main__":
     alter_paths()
-    if DEBUG:
+    if '--all' in sys.argv:
         dirs = [x for x in os.listdir('.') if x.startswith('case') or x.startswith('issue')]
         for t in dirs:
-            modeltest(t.strip())
-            print '='*55
+            try:
+                err = modeltest(t.strip())
+                if err:
+                    print '='*55
+            except Exception, err:
+                print '-'*55
+                import traceback; traceback.print_exc()
+                print '='*55
         sys.exit()
     if len(sys.argv)<2 or len(sys.argv)>2:
         print "Usage: modeltest.py <test_name>"
