@@ -22,7 +22,6 @@ def reload_models(app_name, version):
 
 def run_sql(commands):
     from django.db import connection
-    from django.db import transaction
     cursor = connection.cursor()
     for action in commands:
         if action.strip().startswith('--'): continue
@@ -54,13 +53,14 @@ def modeltest(app_name, use_aka=True):
     from deseb.actions import get_introspected_evolution_options
     from django.core.management.sql import sql_create, sql_indexes
     from django.db.transaction import commit_on_success
+    from django.db import connection
+    from deseb.actions import get_schemas, show_evolution_plan
     if DEBUG:
         print "Test %s" % app_name
     #reset on post state and pre state
     from deseb import add_aka_support
     if use_aka:
         add_aka_support()
-    
     
     style = no_style()
     settings.INSTALLED_APPS = tuple(list(settings.INSTALLED_APPS[:5]) + [app_name])
@@ -92,23 +92,34 @@ def modeltest(app_name, use_aka=True):
         update_with_aka(app_name)
         save_renames(app_name)
 
-    diff = evolvediff(app)
+    cursor = connection.cursor()
+    db_schema, model_schema = get_schemas(cursor, app, style)
+    diff = show_evolution_plan(cursor, app, style, db_schema, model_schema)
     write_file(app_name+"/diff.%s.actual" % settings.DATABASE_ENGINE, diff)
     #FIXME: compare to diff.correct later instead of copying
     write_file(app_name+"/diff.%s.planned" % settings.DATABASE_ENGINE, diff)
     
-    actions = get_introspected_evolution_options(app, style)
+    actions = get_introspected_evolution_options(app, style, db_schema, model_schema)
     write_file(app_name+"/actions.%s.actual" % settings.DATABASE_ENGINE, actions)
     #FIXME: compare to diff.correct later instead of copying
     write_file(app_name+"/actions.%s.planned" % settings.DATABASE_ENGINE, actions)
     try:
         commit_on_success(run_sql)(actions)
     except:
+        #print 'changes rolled back'
         from django.db import transaction
         transaction.rollback()
         raise
-    
-    diff = evolvediff(app)
+    #else:
+        #print 'changes committed'
+
+    cursor = connection.cursor()
+    db_schema, model_schema = get_schemas(cursor, app, style, model_schema=model_schema)
+    # due to sqlite3/pysqlite bug, caused deferred index creation, we reget db schema.
+    # this is fucking weird, but i've no any explanation, why getting indxes
+    # doesn't work correctly first time  
+    db_schema, model_schema = get_schemas(cursor, app, style, model_schema=model_schema)
+    diff = show_evolution_plan(cursor, app, style, db_schema, model_schema)
     write_file(app_name+"/errdiff.%s.actual" % settings.DATABASE_ENGINE, diff)
     diff1 = diff.split('\n',1)[1]
     if diff1:
@@ -116,7 +127,7 @@ def modeltest(app_name, use_aka=True):
         print diff1
 
     try:
-        actions = get_introspected_evolution_options(app, style)
+        actions, db_schema, model_schema = get_introspected_evolution_options(app, style, db_schema, model_schema)
     except Exception:
         actions = ['Was unable to generate error diff SQL commands']
     write_file(app_name+"/errors.%s.actual" % settings.DATABASE_ENGINE, actions)

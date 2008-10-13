@@ -5,6 +5,7 @@ from deseb.common import management
 from deseb.builder import build_model_schema
 from deseb.storage import get_model_aka
 from deseb.actions import get_installed_tables
+from deseb.actions import get_schemas
 import os, sys, datetime, traceback
 
 DEBUG = False
@@ -28,7 +29,9 @@ def get_sql_evolution_detailed(app, style, notify):
     
     final_output = []
 
-    schema_fingerprint = introspection.get_schema_fingerprint(cursor, app_name, get_installed_tables(app))
+    db_schema, model_schema = get_schemas(cursor, app, style) 
+    cursor, app_name, get_installed_tables(app)
+    schema_fingerprint = introspection.get_schema_fingerprint(model_schema)
     schema_recognized, all_upgrade_paths, available_upgrades, best_upgrade \
         = get_managed_evolution_options(app, schema_fingerprint, style, notify)
     if schema_recognized:

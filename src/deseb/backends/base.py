@@ -208,12 +208,11 @@ class BaseDatabaseIntrospection(object):
     def __init__(self, connection):
         self.connection = connection
     
-    def get_schema_fingerprint(self, cursor, app_name, add_tables):
+    def get_schema_fingerprint(self, schema):
         """it's important that the output of these methods don't change, otherwise
         the hashes they produce will be inconsistent (and detection of existing
         schemas will fail.  unless you are absolutely sure the output for ALL
         valid inputs will remain the same, you should bump the version"""
-        schema = self.get_schema(cursor, app_name, add_tables)
         return 'fv2:'+ schema.get_hash()
 
     def get_table_names(self, cursor):

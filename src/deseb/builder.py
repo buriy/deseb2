@@ -66,6 +66,10 @@ def build_m2m_table(app, m2m_field, model):
         f.attname = column
         flags = build_model_flags(model, f)
         table.fields.append(flags)
+        from django.conf import settings
+        if settings.DATABASE_ENGINE.startswith('postgres') and isinstance(f, AutoField):
+            flags.sequence = table.name+"_"+column+"_seq"
+
     return table
 
 def build_model_schema(app):

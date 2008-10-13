@@ -127,7 +127,7 @@ class DBSchema(DBEntity):
         return 'Schema "%s":' % self.name
     
     def get_hash(self):
-        output = self.__unicode__()
+        output = self.__unicode__()[1:] #don't take self name
         return sha.new(output).hexdigest()[:10]
 
 class AmbiguityOnRenameException(Exception): pass

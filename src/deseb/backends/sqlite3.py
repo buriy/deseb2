@@ -84,9 +84,6 @@ class DatabaseOperations(BaseDatabaseOperations):
         return None, None
     
 class DatabaseIntrospection(BaseDatabaseIntrospection):
-    def __init__(self, connection):
-        self.connection = connection
-    
     def get_table_names(self, cursor):
         cursor.execute("select * from sqlite_master where type='table' order by name;")
         return [row[1] for row in cursor.fetchall()]
@@ -95,13 +92,14 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         qn = self.connection.ops.quote_name
         cursor.execute("PRAGMA index_list(%s);" % qn(table_name))
         indexes = []
+        #print 'trying', table_name
         for row in cursor.fetchall():
             #print table_name, row
             if row[2] == 1: continue # sqlite_autoindex_* indexes
             cursor.execute("PRAGMA index_info(%s)" % qn(row[1]))
             columns = cursor.fetchall()
-            if len(columns)>1: continue
             #print table_name, row, '=>', columns
+            if len(columns)>1: continue
             index = DBIndex(
                 pk = False,
                 name = columns[0][2],
@@ -132,6 +130,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
             col['allow_null'] = (row[3]==0)
                 
         cursor.execute("select sql from sqlite_master where name=%s;" % qn(table_name))
+        
         for row in cursor.fetchall():
             table_description = [ s.strip() for s in row[0].split('\n')[1:-1] ]
             for column_description in table_description:

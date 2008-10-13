@@ -1,23 +1,22 @@
 from deseb.backends.sqlite3 import RebuildTableNeededException
 from deseb.builder import build_model_schema
-from deseb.common import fixed_sql_model_create, SQL, management, get_installed_models
+from deseb.common import SQL
 from deseb.common import get_operations_and_introspection_classes
 from deseb.meta import DBField, DBIndex, TreeDiff, DBTable, DBEntity, DBSchema
-from deseb.storage import get_model_aka, get_table_aka
-from deseb.meta import AttributeChange
+from deseb.storage import get_table_aka
 
 DEBUG = False
 
 class NotNullColumnNeedsDefaultException(Exception): pass
 class MultipleRenamesPossibleException(Exception): pass
 
-def get_introspection_module():
-    from django.db import connection
-    return connection.introspection
+#def get_introspection_module():
+#    from django.db import connection
+#    return connection.introspection
 
-def get_creation_module():
-    from django.db import connection
-    return connection.creation
+#def get_creation_module():
+#    from django.db import connection
+#    return connection.creation
 
 class Actions(object):
     parents = DBEntity
@@ -166,51 +165,45 @@ class TableActions(Actions):
             return self.do_rebuild(change)
         return sql
 
-def get_possible_app_models(cursor, app_name):
-    table_list = get_introspection_module().get_table_list(cursor)
-    seen_models = get_installed_models(table_list)
-    app_models = []
-    for m in seen_models:
-        if m._meta.app_label == app_name and m._meta.db_table:
-            app_models.append(m._meta.db_table)
-            app_models.extend(get_model_aka(m)) 
-    return app_models
+#app_models = get_possible_app_models(cursor, app_name)
+#def get_possible_app_models(cursor, app_name):
+#    table_list = get_introspection_module().get_table_list(cursor)
+#    seen_models = get_installed_models(table_list)
+#    app_models = []
+#    for m in seen_models:
+#        if m._meta.app_label == app_name and m._meta.db_table:
+#            app_models.append(m._meta.db_table)
+#            app_models.extend(get_model_aka(m)) 
+#    return app_models
 
-def show_evolution_plan(cursor, app, style):
-    _ops, introspection = get_operations_and_introspection_classes(style)
-
-    model_schema = build_model_schema(app)
+def get_installed_tables(app, model_schema):
     app_name = app.__name__.split('.')[-2]
-    app_models = get_possible_app_models(cursor, app_name)
-    db_schema = introspection.get_schema(cursor, app_name, app_models)
-    db_schema.name = 'Current DB'
-    diff = TreeDiff(db_schema, model_schema)
-    return unicode(diff)
-
-def get_installed_tables(app, model_schema = None):
-    app_name = app.__name__.split('.')[-2]
-    if model_schema is None:
-        model_schema = build_model_schema(app)
+    if model_schema is None: raise Exception("No model_schema given")
     add_tables = set()
-    for name, model in model_schema.tables.items():
+    for name, _model in model_schema.tables.items():
         add_tables.add(name)
         add_tables.update(get_table_aka(app_name, name))
     return add_tables
 
-def get_introspected_evolution_options(app, style):
-    from django.db import connection
+def get_schemas(cursor, app, style, db_schema=None, model_schema=None):
     _ops, introspection = get_operations_and_introspection_classes(style)
-    cursor = connection.cursor()
+    app_name = app.__name__.split('.')[-2]
+    if model_schema is None:
+        model_schema = build_model_schema(app)
+    add_tables = get_installed_tables(app, model_schema)
+    if db_schema is None:
+        db_schema = introspection.get_schema(cursor, app_name, add_tables)
+        db_schema.name = 'Current DB'
+    return db_schema, model_schema
+
+def show_evolution_plan(cursor, app, style, db_schema, model_schema):
+    diff = TreeDiff(db_schema, model_schema)
+    return unicode(diff)
+
+def get_introspected_evolution_options(app, style, db_schema, model_schema):
     app_name = app.__name__.split('.')[-2]
     if DEBUG: print '-'*55
     if DEBUG: print 'Application "%s":' % app_name
-
-    model_schema = build_model_schema(app)
-    
-    add_tables = get_installed_tables(app, model_schema)
-    
-    db_schema = introspection.get_schema(cursor, app_name, add_tables)
-    
     diff = TreeDiff(db_schema, model_schema)
     output = []
     actions = TableActions(model_schema, style).process(diff.changes)
